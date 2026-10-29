@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Send a message across the solar system at the speed of light, and watch Voyager 1 live. A Curio companion.">
+<link rel="icon" href="../assets/curio-mark.png">
+<title>Light-Day Explorer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+body { margin: 0; }
+/* Layout: one column of "mission panels" on deep space; a live Voyager readout up top,
+   then the message console where every destination is a log-scaled light path. */
+:root {
+  --space: #070A10;      /* background, matches the video */
+  --panel: #0E1420;      /* raised panels */
+  --line: #1E2838;       /* hairlines, tracks */
+  --star: #E9EEF5;       /* primary text */
+  --dim: #8B97A8;        /* secondary text */
+  --light: #2FD4FF;      /* light / signals only, as in the video */
+  --sun: #FFB347;        /* the Sun and "now" markers */
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --body: "Sora", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--space);
+  background-image: radial-gradient(1px 1px at 12% 18%, #fff8 50%, transparent 51%), radial-gradient(1px 1px at 78% 9%, #fff6 50%, transparent 51%),
+    radial-gradient(1px 1px at 44% 63%, #fff5 50%, transparent 51%), radial-gradient(1px 1px at 91% 72%, #fff7 50%, transparent 51%),
+    radial-gradient(1px 1px at 23% 88%, #fff4 50%, transparent 51%), radial-gradient(1.5px 1.5px at 63% 34%, #fff9 50%, transparent 51%);
+  background-size: 420px 420px;
+  color: var(--star);
+  font: 16px/1.55 var(--body);
+}
+main {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--light); }
+h1 { font: 700 clamp(34px, 7vw, 56px)/1.02 var(--display); margin: 10px 0 12px; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 700 24px/1.15 var(--display); margin: 0 0 6px; text-wrap: balance; }
+p { margin: 0; max-width: 62ch; color: var(--dim); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+
+/* Live Voyager readout */
+.readout { display: grid; gap: 18px; }
+.big { font: 500 clamp(30px, 7.5vw, 50px)/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--star); }
+.big small { font-size: .42em; color: var(--dim); margin-left: 6px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stat { border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
+.stat b { display: block; font: 500 18px/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--star); }
+.stat span { font-size: 13px; color: var(--dim); }
+.milestone { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--dim); flex-wrap: wrap; }
+.pill { font: 500 12px/1 var(--mono); padding: 6px 10px; border-radius: 99px; border: 1px solid var(--light); color: var(--light); white-space: nowrap; }
+.pill.done { background: var(--light); color: var(--space); }
+
+/* Message console */
+.console { display: grid; gap: 18px; }
+label { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.msg { display: grid; gap: 8px; }
+input[type="text"] {
+  width: 100%; font: 16px var(--body); color: var(--star); background: var(--space);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+}
+input[type="text"]:focus-visible, button:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; }
+.dests { display: grid; gap: 8px; }
+.dest {
+  display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 10px 12px;
+}
+.dest:hover { border-color: var(--line); }
+.dest[aria-pressed="true"] { border-color: var(--light); background: #2fd4ff12; }
+.dest .name { font-weight: 500; min-width: 0; }
+.dest .name small { display: block; font-size: 12px; color: var(--dim); font-weight: 400; }
+.track { position: relative; height: 4px; background: var(--line); border-radius: 4px; }
+.track i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: linear-gradient(90deg, #2fd4ff55, var(--light)); }
+.dest .time { font: 500 14px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--star); white-space: nowrap; }
+.scale { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--dim); padding: 0 12px 0 calc(9.5em + 24px); }
+
+.send { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+button.go {
+  font: 600 15px var(--body); color: var(--space); background: var(--light); border: 0; border-radius: 10px;
+  padding: 12px 18px; cursor: pointer;
+}
+button.go:hover { filter: brightness(1.08); }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--dim); cursor: pointer; }
+.result { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+.flight { position: relative; height: 34px; }
+.flight .path { position: absolute; left: 14px; right: 14px; top: 16px; height: 2px; background: repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 14px); }
+.flight .end { position: absolute; top: 9px; width: 16px; height: 16px; border-radius: 50%; }
+.flight .earth { left: 6px; background: radial-gradient(circle at 35% 35%, #7fc4ff, #2f7bea 60%, #163a7a); }
+.flight .there { right: 6px; background: var(--dim); }
+.flight .pulse { position: absolute; top: 11px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: var(--light); box-shadow: 0 0 14px 4px #2fd4ff88; transform: translateX(0); }
+.times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.times div { min-width: 0; }
+.times b { display: block; font: 500 17px/1.3 var(--mono); color: var(--star); }
+.times span { font-size: 13px; color: var(--dim); }
+.verdict { font: 700 20px/1.3 var(--display); color: var(--star); text-wrap: balance; }
+.verdict em { font-style: normal; color: var(--light); }
+.note { font-size: 13px; color: var(--dim); }
+footer { font-size: 12px; color: var(--dim); display: grid; gap: 6px; }
+footer a { color: var(--dim); }
+@media (max-width: 560px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .dest { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name time" "track track"; row-gap: 8px; }
+  .dest .name { grid-area: name; } .dest .time { grid-area: time; } .dest .track { grid-area: track; }
+  .scale { padding-left: 12px; }
+  .times { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .flight .pulse { transition: none !important; } }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow"><a href="../" style="color:inherit;text-decoration:none">Curio</a> · after the video</div>
+    <h1>How far is one light-day?</h1>
+    <p>You just watched Voyager 1 reach the edge of a light-day. Now try it yourself: watch where Voyager is right now, then send a message across the solar system and see when it would really arrive.</p>
+  </header>
+
+  <section class="panel readout" aria-labelledby="live-h">
+    <div>
+      <div class="eyebrow">Live estimate</div>
+      <h2 id="live-h">Voyager 1, right now</h2>
+    </div>
+    <div class="big" id="km">25,900,000,000<small>km</small></div>
+    <div class="stats">
+      <div class="stat"><b id="lt">24h 00m 00s</b><span>for light to reach it</span></div>
+      <div class="stat"><b id="au">173.1</b><span>times the Earth–Sun distance (AU)</span></div>
+      <div class="stat"><b>~61,000</b><span>km it travels every hour</span></div>
+    </div>
+    <div class="milestone"><span class="pill" id="mpill">Light-day milestone</span><span id="mtext">Expected 18 Nov 2026</span></div>
+  </section>
+
+  <section class="panel console" aria-labelledby="send-h">
+    <div>
+      <div class="eyebrow">Message console</div>
+      <h2 id="send-h">Send a message at the speed of light</h2>
+      <p>Pick a destination. Each bar is a light path on a log scale, so every step right is about ten times longer.</p>
+    </div>
+    <div class="msg">
+      <label for="text">Your message</label>
+      <input type="text" id="text" maxlength="60" value="Good morning!" autocomplete="off">
+    </div>
+    <div class="dests" id="dests" role="group" aria-label="Destinations"></div>
+    <div class="scale" aria-hidden="true"><span>1 sec</span><span>1 min</span><span>1 hr</span><span>1 day</span><span>1 yr</span></div>
+    <div class="send">
+      <button class="go" id="go" type="button">Send it</button>
+      <label class="toggle" for="round"><input type="checkbox" id="round"> Wait for a reply (round trip)</label>
+    </div>
+    <div class="result" id="result" aria-live="polite">
+      <div class="flight" aria-hidden="true"><div class="path"></div><div class="end earth"></div><div class="end there"></div><div class="pulse" id="pulse"></div></div>
+      <div class="verdict" id="verdict"></div>
+      <div class="times">
+        <div><b id="sent">—</b><span>you press send</span></div>
+        <div><b id="arrive">—</b><span id="arriveLbl">it arrives</span></div>
+      </div>
+      <div class="note" id="note"></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Distances are rounded, typical values; planet distances change as the worlds orbit. Voyager 1's live distance is an estimate from NASA's light-day milestone and its speed of about 17 km/s.</span>
+    <span>Sources: <a href="https://science.nasa.gov/mission/voyager/" target="_blank" rel="noopener">NASA Voyager</a> · <a href="https://earthsky.org/space/voyager-1-1-light-day-from-earth-november-17-18-2026/" target="_blank" rel="noopener">EarthSky</a></span>
+  </footer>
+</main>
+
+<script>
+const C = 299792.458; // km per second
+const LIGHT_DAY_AT = Date.UTC(2026, 10, 18, 6, 16, 7); // 18 Nov 2026, 00:16:07 CST
+const LIGHT_DAY_KM = C * 86400;
+const V1_SPEED = 16.9; // km/s, approximate
+
+// Light-travel time in seconds (typical one-way values from Earth).
+const DESTS = [
+  { id: "moon", name: "The Moon", note: "Apollo's radio delay", s: 1.28 },
+  { id: "sun", name: "The Sun", note: "sunlight's trip to you", s: 499 },
+  { id: "mars", name: "Mars", note: "3 to 22 min; about 12 typical", s: 12.5 * 60 },
+  { id: "jupiter", name: "Jupiter", note: "Juno's home", s: 43 * 60 },
+  { id: "saturn", name: "Saturn", note: "about 80 min", s: 80 * 60 },
+  { id: "pluto", name: "Pluto", note: "about 4.6 hours", s: 4.6 * 3600 },
+  { id: "nh", name: "New Horizons", note: "past Pluto, still going", s: 8.4 * 3600 },
+  { id: "v2", name: "Voyager 2", note: "the other interstellar probe", s: 19.6 * 3600 },
+  { id: "v1", name: "Voyager 1", note: "our farthest messenger", s: null },
+  { id: "proxima", name: "Proxima Centauri", note: "the nearest star", s: 4.24 * 365.25 * 86400 },
+];
+const v1Seconds = (t = Date.now()) => (LIGHT_DAY_KM + V1_SPEED * (t - LIGHT_DAY_AT) / 1000) / C;
+const secs = (d) => d.s ?? v1Seconds();
+
+const MIN_LOG = Math.log10(1), MAX_LOG = Math.log10(3.2e7 * 1.6);
+const frac = (s) => Math.min(1, Math.max(0.02, (Math.log10(s) - MIN_LOG) / (MAX_LOG - MIN_LOG)));
+
+function dur(s) {
+  if (s < 60) return s.toFixed(s < 10 ? 2 : 0) + " s";
+  if (s < 3600) return Math.round(s / 60) + " min";
+  if (s < 86400 * 2) { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h + " h " + String(m).padStart(2, "0") + " m"; }
+  if (s < 86400 * 365) return (s / 86400).toFixed(1) + " days";
+  return (s / 86400 / 365.25).toFixed(2) + " years";
+}
+const fmtWhen = (d) => d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+
+let chosen = "v1";
+const box = document.getElementById("dests");
+for (const d of DESTS) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "dest"; b.id = "dest-" + d.id; b.dataset.id = d.id;
+  b.innerHTML = `<span class="name">${d.name}<small>${d.note}</small></span><span class="track"><i style="width:${(frac(secs(d)) * 100).toFixed(1)}%"></i></span><span class="time">${dur(secs(d))}</span>`;
+  b.addEventListener("click", () => { chosen = d.id; mark(); show(false); });
+  box.appendChild(b);
+}
+function mark() { for (const b of box.children) b.setAttribute("aria-pressed", String(b.dataset.id === chosen)); }
+
+function show(animate) {
+  const d = DESTS.find((x) => x.id === chosen);
+  const round = document.getElementById("round").checked;
+  const one = secs(d), total = round ? one * 2 : one;
+  const now = new Date(), at = new Date(now.getTime() + total * 1000);
+  const text = document.getElementById("text").value.trim() || "Hello";
+  document.getElementById("sent").textContent = fmtWhen(now);
+  document.getElementById("arrive").textContent = total < 60 ? "+" + dur(total) + " later" : fmtWhen(at);
+  document.getElementById("arriveLbl").textContent = round ? "their reply reaches you" : "it arrives";
+  const dayGap = Math.round((new Date(at).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86400000);
+  const when = dayGap <= 0 ? "later today" : dayGap === 1 ? "tomorrow" : dayGap < 365 ? `in ${dayGap} days` : `in ${(dayGap / 365.25).toFixed(1)} years`;
+  document.getElementById("verdict").innerHTML = `"${text.replace(/[<>&]/g, "")}" reaches ${d.name} in <em>${dur(one)}</em>` + (round ? `, and a reply gets back ${when}.` : total < 3600 ? "." : `: it lands ${when}.`);
+  document.getElementById("note").textContent = d.id === "v1"
+    ? "Voyager's radio is weaker than a fridge light bulb; NASA's 70-metre dishes listen for it every day."
+    : d.id === "proxima" ? "No probe is there. Even Voyager would need about 73,000 years to get that far." : "";
+  const p = document.getElementById("pulse");
+  const flight = p.parentElement.getBoundingClientRect().width - 40;
+  p.style.transition = "none"; p.style.transform = "translateX(0)";
+  if (animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      p.style.transition = `transform ${0.6 + frac(one) * 2.6}s cubic-bezier(.3,.1,.3,1)`;
+      p.style.transform = `translateX(${flight}px)`;
+    }));
+  } else p.style.transform = `translateX(${flight}px)`;
+}
+document.getElementById("go").addEventListener("click", () => show(true));
+document.getElementById("round").addEventListener("change", () => show(false));
+
+function tick() {
+  const now = Date.now(), s = v1Seconds(now), km = s * C;
+  document.getElementById("km").firstChild.textContent = Math.round(km / 1000).toLocaleString() + ",000";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+  document.getElementById("lt").textContent = `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+  document.getElementById("au").textContent = (km / 149597870.7).toFixed(2);
+  const pill = document.getElementById("mpill"), mt = document.getElementById("mtext");
+  if (now >= LIGHT_DAY_AT) { pill.textContent = "Passed 1 light-day"; pill.classList.add("done"); mt.textContent = "Reached 18 Nov 2026 and still going"; }
+  else { const d = Math.ceil((LIGHT_DAY_AT - now) / 86400000); pill.textContent = "Light-day milestone"; pill.classList.remove("done"); mt.textContent = `In about ${d} day${d === 1 ? "" : "s"}: 18 Nov 2026`; }
+  const vb = document.querySelector("#dest-v1 .time");
+  if (vb) vb.textContent = dur(s);
+}
+mark(); tick(); show(false);
+setInterval(tick, 1000);
+</script>
+
+</html>
