@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Enter your age and see this year as a slice of your life, where you sit on the shrinking-share curve, and your felt halfway point. A Curio companion.">
+<link rel="icon" href="../assets/curio-mark.png">
+<title>Your Life Ribbon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+body { margin: 0; }
+/* Layout: one paper column, like the video. Age control on top, then the person on
+   their ribbon, three readouts, the shrinking-share curve, and the "felt" ribbon.
+   Single committed look: paper & ink, amber means "this year" only (as in the video). */
+:root {
+  --paper: #ECEEF0;   /* background, matches the video */
+  --card: #F6F7F8;    /* raised sheets */
+  --ink: #1E2329;     /* drawings and text */
+  --soft: #5D6670;    /* secondary text */
+  --rule: #9AA3AD;    /* guides, thin year lines */
+  --year: #F2A51A;    /* "this year" only */
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 17px/1.55 var(--body); }
+main {
+  max-width: 640px; margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 22px;
+}
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--soft); }
+h1 { font: 800 clamp(36px, 9vw, 58px)/.98 var(--display); letter-spacing: -.02em; margin: 8px 0 10px; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--year); }
+h2 { font: 700 22px/1.15 var(--display); margin: 0 0 4px; text-wrap: balance; }
+p { margin: 0; max-width: 62ch; }
+.lede { color: var(--soft); }
+.sheet { background: var(--card); border: 2px solid var(--ink); border-radius: 14px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+
+/* Age control */
+.age-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.age-row label { font: 700 18px/1 var(--display); }
+#ageNum {
+  width: 4.2ch; font: 800 44px/1 var(--display); color: var(--ink); background: transparent;
+  border: none; border-bottom: 3px solid var(--ink); text-align: center; padding: 0 2px; font-variant-numeric: tabular-nums;
+}
+#ageNum:focus-visible, #age:focus-visible, .chip:focus-visible { outline: 3px solid var(--year); outline-offset: 3px; }
+.age-row .unit { color: var(--soft); }
+input[type=range] { width: 100%; accent-color: var(--ink); height: 32px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: 500 14px/1 var(--mono); padding: 8px 12px; border-radius: 999px; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+
+/* Drawing */
+svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.stage text { font-family: var(--mono); font-size: 13px; fill: var(--soft); }
+
+/* Readouts */
+.reads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.read { border-top: 2px solid var(--ink); padding-top: 8px; min-width: 0; }
+.read b { display: block; font: 800 clamp(26px, 7vw, 38px)/1.05 var(--display); font-variant-numeric: tabular-nums; }
+.read b.year { color: var(--year); }
+.read span { display: block; font-size: 14px; color: var(--soft); line-height: 1.35; }
+@media (max-width: 460px) { .reads { grid-template-columns: 1fr; } .read { display: grid; grid-template-columns: 7.5ch 1fr; gap: 10px; align-items: baseline; } }
+
+.big-line { font: 700 clamp(20px, 5vw, 26px)/1.25 var(--display); text-wrap: balance; }
+.big-line .y { color: var(--year); }
+.note { font-size: 14px; color: var(--soft); }
+.note strong { color: var(--ink); }
+footer { font-size: 13px; color: var(--soft); display: grid; gap: 6px; }
+footer a { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow"><a href="../" style="color:inherit;text-decoration:none">Curio</a> · after the video</div>
+    <h1>How big is <em>this year</em> in your life?</h1>
+    <p class="lede">At 5, one year is a fifth of everything you've lived. At 50, it's a fiftieth. Put in your age and see your own ribbon.</p>
+  </header>
+
+  <section class="sheet" aria-labelledby="ageLabel">
+    <div class="age-row">
+      <label id="ageLabel" for="ageNum">Your age</label>
+      <input id="ageNum" type="number" inputmode="numeric" min="1" max="100" value="30" aria-describedby="ageHelp">
+      <span class="unit">years</span>
+    </div>
+    <input id="age" type="range" min="1" max="100" value="30" aria-label="Your age, slider">
+    <div class="chips" role="group" aria-label="Try an age">
+      <button class="chip" type="button" data-age="5">5</button>
+      <button class="chip" type="button" data-age="10">10</button>
+      <button class="chip" type="button" data-age="20">20</button>
+      <button class="chip" type="button" data-age="30">30</button>
+      <button class="chip" type="button" data-age="50">50</button>
+      <button class="chip" type="button" data-age="80">80</button>
+    </div>
+    <p id="ageHelp" class="note">Example shown: age 30. Nothing you type leaves this page.</p>
+  </section>
+
+  <section class="sheet" aria-labelledby="ribbonTitle">
+    <h2 id="ribbonTitle">Your life ribbon</h2>
+    <p class="note">One piece per year you've lived. <strong>This year</strong> is the amber one.</p>
+    <svg id="ribbon" class="stage" viewBox="0 0 600 300" role="img" aria-label="Your life ribbon"></svg>
+    <p class="big-line" id="headline"></p>
+    <div class="reads">
+      <div class="read"><b class="year" id="rFrac"></b><span>of your life is this year</span></div>
+      <div class="read"><b id="rPct"></b><span>as a percentage</span></div>
+      <div class="read"><b id="rDays"></b><span id="rDaysLabel">days at age 5 feel this big</span></div>
+    </div>
+  </section>
+
+  <section class="sheet" aria-labelledby="curveTitle">
+    <h2 id="curveTitle">The share keeps shrinking</h2>
+    <p class="note">One year as a share of your life (100 ÷ age), from 5 to 90. You're the amber dot.</p>
+    <svg id="curve" class="stage" viewBox="0 0 600 330" role="img" aria-label="Curve of one year as a share of your life"></svg>
+  </section>
+
+  <section class="sheet" aria-labelledby="feltTitle">
+    <h2 id="feltTitle">Your felt halfway point</h2>
+    <p class="note">If each year weighs 1 ÷ your age (Janet's model), 80 years re-space like this: early years stretch, late years squeeze. The middle lands at about age 9.</p>
+    <svg id="felt" class="stage" viewBox="0 0 600 170" role="img" aria-label="Eighty years spaced by felt time"></svg>
+    <p class="big-line" id="feltLine"></p>
+    <p class="note">The good news from the video: years packed with firsts tend to feel longer looking back. So a new place, skill or hobby can make this year stand out.</p>
+  </section>
+
+  <footer>
+    <p><strong>These are models, not measurements.</strong> Janet's proportional idea (1877) is a way of thinking about felt time, not a law. In a survey of 499 people aged 14 to 94 (Wittmann &amp; Lehnhoff, 2005), age only changed how fast the last ten years felt; weeks, months and single years felt the same at every age. "Days at age 5" = 365 × 5 ÷ your age. "Felt" spacing uses log(age) from age 1 to 80.</p>
+    <p>Sources:
+      <a href="https://www.scientificamerican.com/article/why-does-time-fly-as-we-get-older/" target="_blank" rel="noopener">Scientific American: Why does time fly as we get older?</a> ·
+      <a href="https://www.scientificamerican.com/article/why-does-time-seem-to-speed-up-with-age/" target="_blank" rel="noopener">Scientific American: Why does time seem to speed up with age?</a> ·
+      <a href="https://arxiv.org/abs/2310.05945" target="_blank" rel="noopener">arXiv 2310.05945: models of subjective time acceleration</a>
+    </p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const C = {ink: '#1E2329', rule: '#9AA3AD', year: '#F2A51A', soft: '#5D6670'};
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const table = (pairs, x) => {
+    if (x <= pairs[0][0]) return pairs[0][1];
+    for (let i = 1; i < pairs.length; i++) {
+      const [x1, y1] = pairs[i], [x0, y0] = pairs[i - 1];
+      if (x <= x1) return lerp(y0, y1, (x - x0) / (x1 - x0));
+    }
+    return pairs[pairs.length - 1][1];
+  };
+  const fmt = (n, d = 0) => n.toLocaleString('en-US', {maximumFractionDigits: d, minimumFractionDigits: d});
+
+  // The video's character, drawn at any age (feet at x, y).
+  const person = (g, age, x, y, s) => {
+    const h = table([[1, 150], [5, 250], [10, 320], [16, 400], [20, 420], [60, 420], [90, 395]], age) * s;
+    const r = table([[1, 52], [5, 46], [10, 43], [20, 38], [90, 38]], age) * s;
+    const w = 5;
+    const p = {fill: 'none', stroke: C.ink, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'};
+    const headY = y - h + r, neck = y - h + 2 * r + 4, shoulder = neck + 0.07 * h, hip = y - 0.42 * h;
+    const foot = 0.11 * h, hand = 0.2 * h;
+    if (age >= 8 && age < 15) el('rect', {...p, x: x - 0.16 * h, y: shoulder + 4, width: 0.12 * h, height: 0.2 * h, rx: 8, 'stroke-width': 4}, g);
+    el('circle', {...p, cx: x, cy: headY, r}, g);
+    el('path', {...p, d: `M ${x} ${neck} L ${x} ${hip}`}, g);
+    el('path', {...p, d: `M ${x - foot} ${y} L ${x} ${hip} L ${x + foot} ${y}`}, g);
+    el('path', {...p, d: `M ${x - hand} ${y - 0.5 * h} L ${x} ${shoulder} L ${x + hand} ${y - 0.5 * h}`}, g);
+    el('circle', {cx: x - r * 0.36, cy: headY - r * 0.05, r: 3.2, fill: C.ink}, g);
+    el('circle', {cx: x + r * 0.36, cy: headY - r * 0.05, r: 3.2, fill: C.ink}, g);
+    el('path', {...p, 'stroke-width': 3.5, d: `M ${x - r * 0.3} ${headY + r * 0.35} Q ${x} ${headY + r * 0.6} ${x + r * 0.3} ${headY + r * 0.35}`}, g);
+    if (age >= 14) el('path', {...p, stroke: age >= 45 ? C.rule : C.ink, 'stroke-width': 4.5, d: `M ${x - r * 0.95} ${headY - r * 0.25} Q ${x - r * 0.6} ${headY - r * 1.25} ${x + r * 0.2} ${headY - r} Q ${x + r * 0.8} ${headY - r * 0.9} ${x + r * 0.95} ${headY - r * 0.3}`}, g);
+    if (age >= 45) {
+      el('circle', {...p, 'stroke-width': 3, cx: x - r * 0.36, cy: headY - r * 0.05, r: r * 0.25}, g);
+      el('circle', {...p, 'stroke-width': 3, cx: x + r * 0.36, cy: headY - r * 0.05, r: r * 0.25}, g);
+    }
+    if (age >= 72) el('path', {...p, d: `M ${x - hand} ${y - 0.5 * h} L ${x - hand - 6} ${y}`}, g);
+  };
+
+  // Life ribbon: one piece per year lived, this year amber; the person stands on it.
+  const drawRibbon = (age) => {
+    const svg = $('ribbon');
+    svg.replaceChildren();
+    const X0 = 20, X1 = 580, Y = 250, HH = 30;
+    const n = age, w = (X1 - X0) / n;
+    el('rect', {x: X1 - w, y: Y - HH / 2, width: w, height: HH, fill: C.year}, svg);
+    el('rect', {x: X0, y: Y - HH / 2, width: X1 - X0, height: HH, rx: 3, fill: 'none', stroke: C.ink, 'stroke-width': 3}, svg);
+    for (let i = 1; i < n; i++) {
+      el('line', {x1: X0 + i * w, y1: Y - HH / 2, x2: X0 + i * w, y2: Y + HH / 2, stroke: n > 30 ? C.rule : C.ink, 'stroke-width': n > 30 ? 1.2 : 2}, svg);
+    }
+    const tipX = Math.max(X0 + 40, Math.min(X1 - 40, X1 - w / 2));
+    person(el('g', {}, svg), age, tipX, Y - HH / 2 - 8, 0.5);
+    const t1 = el('text', {x: X0, y: Y + 40}, svg); t1.textContent = 'birth';
+    const t2 = el('text', {x: X1, y: Y + 40, 'text-anchor': 'end'}, svg); t2.textContent = `age ${age}`;
+  };
+
+  // Curve: 100 / age from 5 to 90, y from 0 to 20 %. Reference dots at 10, 20, 50.
+  const drawCurve = (age) => {
+    const svg = $('curve');
+    svg.replaceChildren();
+    const L = 52, R = 580, T = 20, B = 280;
+    const X = (a) => L + ((a - 5) / 85) * (R - L);
+    const Y = (p) => B - (Math.min(p, 20) / 20) * (B - T);
+    for (const p of [0, 5, 10, 15, 20]) {
+      el('line', {x1: L, y1: Y(p), x2: R, y2: Y(p), stroke: C.rule, 'stroke-width': p ? 1 : 2, 'stroke-dasharray': p ? '3 6' : ''}, svg);
+      const t = el('text', {x: L - 8, y: Y(p) + 4, 'text-anchor': 'end'}, svg); t.textContent = `${p}%`;
+    }
+    for (const a of [5, 10, 20, 30, 50, 70, 90]) {
+      const t = el('text', {x: X(a), y: B + 24, 'text-anchor': 'middle'}, svg); t.textContent = a;
+    }
+    const xl = el('text', {x: R, y: B + 44, 'text-anchor': 'end'}, svg); xl.textContent = 'age';
+    let d = '';
+    for (let a = 5; a <= 90; a += 0.5) d += `${a === 5 ? 'M' : 'L'} ${X(a).toFixed(1)} ${Y(100 / a).toFixed(1)} `;
+    el('path', {d, fill: 'none', stroke: C.ink, 'stroke-width': 3.5, 'stroke-linecap': 'round'}, svg);
+    for (const a of [10, 20, 50]) el('circle', {cx: X(a), cy: Y(100 / a), r: 5, fill: C.card || '#F6F7F8', stroke: C.ink, 'stroke-width': 2.5}, svg);
+    if (age >= 5 && age <= 90) {
+      el('line', {x1: X(age), y1: Y(100 / age), x2: X(age), y2: B, stroke: C.year, 'stroke-width': 2, 'stroke-dasharray': '4 5'}, svg);
+      el('circle', {cx: X(age), cy: Y(100 / age), r: 10, fill: C.year, stroke: C.ink, 'stroke-width': 2.5}, svg);
+      const lab = el('text', {x: Math.min(X(age) + 14, R - 70), y: Math.max(Y(100 / age) - 14, T + 12), 'font-weight': 500}, svg);
+      lab.textContent = `you: ${fmt(100 / age, 1)}%`;
+      lab.setAttribute('fill', C.ink);
+    } else {
+      const t = el('text', {x: age < 5 ? L + 8 : R - 8, y: T + 12, 'text-anchor': age < 5 ? 'start' : 'end'}, svg);
+      t.setAttribute('fill', C.ink);
+      t.textContent = age < 5 ? `you: ${fmt(100 / age, 0)}%, off the top of this chart` : `you: ${fmt(100 / age, 1)}%`;
+    }
+  };
+
+  // Felt spacing of 80 years: boundary for age a at log(a) / log(80); middle = about 9.
+  const drawFelt = (age) => {
+    const svg = $('felt');
+    svg.replaceChildren();
+    const X0 = 20, X1 = 580, Y = 80, HH = 30;
+    const at = (a) => X0 + (a <= 1 ? 0 : Math.log(a) / Math.log(80)) * (X1 - X0);
+    if (age >= 1 && age <= 80) {
+      const a0 = Math.max(1, age - 1);
+      el('rect', {x: at(a0), y: Y - HH / 2, width: Math.max(3, at(age) - at(a0)), height: HH, fill: C.year}, svg);
+    }
+    el('rect', {x: X0, y: Y - HH / 2, width: X1 - X0, height: HH, rx: 3, fill: 'none', stroke: C.ink, 'stroke-width': 3}, svg);
+    for (let a = 2; a < 80; a++) {
+      el('line', {x1: at(a), y1: Y - HH / 2, x2: at(a), y2: Y + HH / 2, stroke: a % 10 === 0 ? C.ink : C.rule, 'stroke-width': a % 10 === 0 ? 2 : 1}, svg);
+    }
+    const mid = (X0 + X1) / 2;
+    el('path', {d: `M ${mid - 9} ${Y - HH / 2 - 22} L ${mid + 9} ${Y - HH / 2 - 22} L ${mid} ${Y - HH / 2 - 6} Z`, fill: C.ink}, svg);
+    const hm = el('text', {x: mid, y: Y - HH / 2 - 30, 'text-anchor': 'middle'}, svg);
+    hm.textContent = 'felt halfway ≈ 9'; hm.setAttribute('fill', C.ink);
+    for (const a of [1, 5, 10, 20, 40, 80]) {
+      const t = el('text', {x: at(a), y: Y + HH / 2 + 22, 'text-anchor': a === 1 ? 'start' : a === 80 ? 'end' : 'middle'}, svg);
+      t.textContent = a;
+    }
+  };
+
+  const days = (age) => (365 * 5) / age;
+
+  const render = (raw) => {
+    const age = Math.max(1, Math.min(100, Math.round(Number(raw) || 1)));
+    $('age').value = age;
+    if (document.activeElement !== $('ageNum')) $('ageNum').value = age;
+    for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', String(Number(c.dataset.age) === age));
+    $('ageHelp').textContent = age === 30 && !touched ? 'Example shown: age 30. Nothing you type leaves this page.' : 'Nothing you type leaves this page.';
+
+    drawRibbon(age);
+    drawCurve(age);
+    drawFelt(age);
+
+    $('rFrac').textContent = `1/${age}`;
+    $('rPct').textContent = `${fmt(100 / age, age >= 10 ? 1 : 0)}%`;
+    const dd = days(age);
+    if (age < 5) {
+      $('rDays').textContent = `${fmt(dd / 365, 1)}×`;
+      $('rDaysLabel').textContent = 'a year at age 5 (bigger)';
+    } else {
+      $('rDays').textContent = fmt(dd);
+      $('rDaysLabel').textContent = age === 5 ? 'days: a full year at 5' : 'days at age 5 feel this big';
+    }
+    $('headline').innerHTML = age === 1
+      ? 'At 1, <span class="y">this year</span> is your whole life so far.'
+      : `At ${age}, <span class="y">this year</span> is 1 of the ${age} years you've lived.`;
+
+    const felt = age <= 1 ? 0 : Math.min(100, (Math.log(age) / Math.log(80)) * 100);
+    $('feltLine').textContent = age >= 80
+      ? `By this model, you've lived through all of the felt time from 1 to 80, and every year now is a sliver worth slowing down.`
+      : age < 9
+        ? `By this model, you're about ${fmt(felt)}% through the felt time from 1 to 80. Your felt halfway point is still ahead.`
+        : `By this model, you're about ${fmt(felt)}% through the felt time from 1 to 80. You passed the felt halfway point around age 9.`;
+  };
+
+  let touched = false;
+  $('age').addEventListener('input', (e) => { touched = true; render(e.target.value); });
+  $('ageNum').addEventListener('input', (e) => { if (e.target.value !== '') { touched = true; render(e.target.value); } });
+  $('ageNum').addEventListener('blur', (e) => render(e.target.value || 1));
+  for (const c of document.querySelectorAll('.chip')) c.addEventListener('click', () => { touched = true; render(c.dataset.age); });
+  render(30);
+})();
+</script>
+</body>
+</html>
