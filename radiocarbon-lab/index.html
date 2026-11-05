@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../assets/curio-mark.png">
+<title>Radiocarbon Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Probe a mystery specimen for its remaining carbon-14, wind the decay clock until it matches, and find out how old it is.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  // Tailwind play-CDN config: page fonts as utility names.
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Inter"', 'system-ui', 'sans-serif'],
+          sans: ['"Inter"', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  /* Layout: a lab bench. Phone (one-handed, portrait): specimen + probe, then the decay clock, then the age check,
+     stacked. Desktop: specimen bench on the left, decay sandbox on the right.
+     Single committed dark look: zinc-950 bench, Curio blue = live carbon-14, white = your probe reading (Curio brand). */
+  :root {
+    color-scheme: dark;
+    --bg: #09090b;          /* zinc-950 */
+    --panel: #131316;       /* instrument panel */
+    --panel-2: #1c1c21;     /* raised control */
+    --line: #2a2a31;        /* hairlines */
+    --fg: #F2F6FA;
+    --muted: #8d8d99;
+    --c14: #3FA9FF;         /* active carbon-14 atom: Curio blue, the one accent */
+    --c14-dim: rgba(63, 169, 255, 0.14);
+    --decayed: #3a3a42;     /* decayed atom (now nitrogen-14) */
+    --reading: #F2F6FA;     /* the probe's measurement: brand white */
+    --ok: #3ee08f;
+    --bad: #ff5d6c;
+    --specimen: #d9d4c7;    /* specimen line art */
+    --font-display: "Inter", system-ui, sans-serif;
+    --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-data: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  html, body { background: var(--bg); color: var(--fg); }
+  body { margin: 0; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+
+  .wrap {
+    max-width: 1180px; margin: 0 auto;
+    padding-block: 18px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  h1, h2 { font-family: var(--font-display); text-wrap: balance; }
+  .eyebrow { font-family: var(--font-data); font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .eyebrow a { color: inherit; text-decoration: none; }
+  .eyebrow a:hover { color: var(--fg); }
+  .data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+  .bench { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "lab" "sandbox" "verify"; }
+  @media (min-width: 980px) {
+    .bench { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "lab sandbox" "verify sandbox"; align-items: start; }
+  }
+  .lab { grid-area: lab; min-width: 0; }
+  .sandbox { grid-area: sandbox; min-width: 0; }
+  .verify { grid-area: verify; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+
+  /* Specimen tabs: a scrollable row on phones */
+  .tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2);
+    color: var(--muted); cursor: pointer; text-align: left; font: inherit;
+  }
+  .tab b { font-family: var(--font-data); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; }
+  .tab span { font-size: 14px; font-weight: 600; color: var(--fg); white-space: nowrap; }
+  .tab[aria-selected="true"] { border-color: var(--c14); box-shadow: 0 0 0 1px var(--c14) inset, 0 0 18px -6px var(--c14); }
+  .tab[aria-selected="true"] b { color: var(--c14); }
+
+  /* Specimen stage with the draggable probe */
+  .stage { position: relative; border-radius: 12px; overflow: hidden; background:
+    radial-gradient(120% 90% at 50% 40%, #16161b 0%, #0b0b0e 70%); box-shadow: inset 0 0 0 1px var(--line); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .stage canvas { display: block; width: 100%; }
+  .probe {
+    position: absolute; left: 0; top: 0; width: 76px; height: 132px; margin: -38px 0 0 -38px; /* tip = head centre */
+    cursor: grab; touch-action: none; background: none; border: 0; padding: 0; transition: filter .2s;
+  }
+  .probe:active { cursor: grabbing; }
+  .probe.glide { transition: left .35s cubic-bezier(.2,.8,.2,1), top .35s cubic-bezier(.2,.8,.2,1); }
+  .probe.on { filter: drop-shadow(0 0 10px rgba(63,169,255,.55)); }
+  .probe:focus-visible { outline: 2px solid var(--reading); outline-offset: 4px; border-radius: 40px; }
+  .hint { position: absolute; left: 10px; top: 10px; right: 10px; font-size: 12.5px; color: var(--muted); pointer-events: none; }
+
+  /* Digital readout */
+  .readout { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #050506; border: 1px solid var(--line); }
+  .led { width: 12px; height: 12px; border-radius: 50%; background: #2a2a31; transition: background .03s, box-shadow .03s; }
+  .led.flash { background: var(--c14); box-shadow: 0 0 12px var(--c14); }
+  .big { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: clamp(26px, 7vw, 34px); font-weight: 700; color: var(--reading); line-height: 1; }
+  .big.idle { color: #4a4a55; }
+  .cps { font-family: var(--font-data); font-size: 12px; color: var(--muted); text-align: right; line-height: 1.3; }
+
+  .btn { font: 600 14px/1 var(--font-ui); border-radius: 10px; padding: 11px 13px; border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); cursor: pointer; transition: background .15s, transform .05s; }
+  .btn:hover { background: #26262d; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--c14); color: #04121f; border-color: var(--c14); }
+  .btn.primary:hover { background: #7cc3ff; }
+  .btn[aria-pressed="true"] { border-color: var(--c14); color: var(--c14); }
+  .btn:focus-visible, .tab:focus-visible, input:focus-visible { outline: 2px solid var(--reading); outline-offset: 2px; }
+
+  /* Sandbox */
+  .grid-canvas { display: block; width: 100%; max-width: 420px; margin: 0 auto; aspect-ratio: 1; }
+  .curve canvas { display: block; width: 100%; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 36px; background: transparent; margin: 0; --fill: 0%; }
+  input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: linear-gradient(to right, var(--c14) var(--fill), var(--line) var(--fill)); }
+  input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: var(--line); }
+  input[type=range]::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--c14); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: var(--fg); border: 4px solid var(--c14); margin-top: -10px; box-shadow: 0 0 14px -2px var(--c14); }
+  input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--fg); border: 4px solid var(--c14); }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .stat { padding: 8px 10px; border-radius: 10px; background: var(--panel-2); }
+  .stat .k { font-size: 11.5px; color: var(--muted); }
+  .stat .v { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 17px; font-weight: 500; white-space: nowrap; }
+  .match { padding: 10px 12px; border-radius: 10px; font-size: 14px; border: 1px dashed var(--line); color: var(--muted); }
+  .match.hit { border: 1px solid var(--ok); color: var(--fg); background: rgba(62,224,143,0.08); }
+  .match.hit b { color: var(--ok); }
+
+  /* Verify */
+  .field { display: flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 10px; background: #050506; padding-right: 12px; min-width: 0; flex: 1 1 160px; }
+  .field input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--fg); font: 500 18px var(--font-data); padding: 11px 12px; }
+  .field input:focus { outline: none; }
+  .field:focus-within { border-color: var(--reading); }
+  .field span { color: var(--muted); font-size: 13px; }
+  .result { font-size: 14px; min-height: 1.4em; }
+  .result.ok { color: var(--ok); }
+  .result.bad { color: var(--bad); }
+  .verify.won { animation: win .9s ease; }
+  .shake { animation: shake .4s ease; }
+  @keyframes win { 0% { box-shadow: 0 0 0 0 rgba(62,224,143,.0); } 30% { box-shadow: 0 0 0 4px rgba(62,224,143,.6), 0 0 40px rgba(62,224,143,.35); } 100% { box-shadow: 0 0 0 0 rgba(62,224,143,0); } }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
+  #burst { position: fixed; inset: 0; pointer-events: none; z-index: 20; width: 100%; height: 100%; }
+
+  .note { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .note b { color: var(--fg); font-weight: 600; }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--fg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .probe.glide { transition: none; }
+    .verify.won, .shake { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="burst" aria-hidden="true"></canvas>
+<div class="wrap">
+
+  <header class="mb-4 flex flex-col gap-2">
+    <div class="eyebrow"><a href="../">Curio</a> · after the video</div>
+    <h1 class="text-[30px] sm:text-4xl font-bold leading-tight">Radiocarbon Lab</h1>
+    <p class="text-[15px] leading-relaxed max-w-[60ch]" style="color: var(--muted)">
+      Pick a mystery specimen and drop the probe on it to measure how much carbon-14 is left.
+      Then wind the decay clock until it matches your reading, and the clock tells you the age.
+    </p>
+  </header>
+
+  <div class="bench">
+
+    <!-- ===== 1. Specimen bench + Geiger probe ===== -->
+    <section class="lab panel p-3 sm:p-4 flex flex-col gap-3" aria-labelledby="labTitle">
+      <h2 id="labTitle" class="sr-only">Specimen bench</h2>
+      <div class="tabs" role="tablist" aria-label="Mystery specimens" id="tabs"></div>
+
+      <div class="stage" id="stage">
+        <canvas id="specimen" aria-label="Drawing of the selected specimen"></canvas>
+        <div class="hint" id="hint">Drag the probe onto the specimen, or tap the specimen.</div>
+        <button class="probe" id="probe" type="button" aria-label="Geiger counter probe. Press Enter to place it on the specimen.">
+          <svg viewBox="0 0 76 132" width="76" height="132" aria-hidden="true">
+            <!-- handle and cable -->
+            <path d="M38 70 L38 128" stroke="#3a3a42" stroke-width="5" stroke-linecap="round"/>
+            <rect x="29" y="64" width="18" height="44" rx="6" fill="#26262d" stroke="#55555f" stroke-width="2"/>
+            <rect x="33" y="72" width="10" height="4" rx="2" fill="#55555f"/>
+            <!-- detector head (the tip is its centre) -->
+            <circle cx="38" cy="38" r="30" fill="#1c1c21" stroke="#9a9aa6" stroke-width="3"/>
+            <circle cx="38" cy="38" r="22" fill="#0d0d10" stroke="#55555f" stroke-width="1.5"/>
+            <g stroke="#55555f" stroke-width="1.5">
+              <line x1="20" y1="30" x2="56" y2="30"/><line x1="17" y1="38" x2="59" y2="38"/><line x1="20" y1="46" x2="56" y2="46"/>
+            </g>
+            <circle id="probeEye" cx="38" cy="38" r="5" fill="#2a2a31"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="readout" aria-live="polite">
+        <span class="led" id="led" aria-hidden="true"></span>
+        <div class="min-w-0">
+          <div class="eyebrow mb-1" id="readLabel">Remaining C-14</div>
+          <div class="big idle" id="reading">--.-%</div>
+        </div>
+        <div class="cps" id="cps">0.0<br>clicks/s</div>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button class="btn" id="soundBtn" type="button" aria-pressed="false">Sound off</button>
+        <button class="btn" id="useBtn" type="button" disabled>Set this reading as the target</button>
+      </div>
+    </section>
+
+    <!-- ===== 2. Decay sandbox: atom grid, curve, time slider ===== -->
+    <section class="sandbox panel p-3 sm:p-4 flex flex-col gap-3" aria-labelledby="sbTitle">
+      <div class="flex items-baseline justify-between gap-3 flex-wrap">
+        <h2 id="sbTitle" class="text-lg font-semibold">Decay clock</h2>
+        <span class="eyebrow">400 atoms · half-life 5,730 yrs</span>
+      </div>
+
+      <canvas class="grid-canvas" id="atoms" aria-label="Grid of 400 carbon-14 atoms; lit atoms are still carbon-14, dark ones have decayed"></canvas>
+
+      <div class="stats">
+        <div class="stat"><div class="k">Years passed</div><div class="v" id="sYears">0</div></div>
+        <div class="stat"><div class="k">C-14 left</div><div class="v" id="sLeft" style="color: var(--c14)">100.0%</div></div>
+        <div class="stat"><div class="k">Half-lives</div><div class="v" id="sHalf">0.00</div></div>
+      </div>
+
+      <div>
+        <label for="years" class="flex justify-between text-sm font-semibold mb-1"><span>Time passed (years)</span><span class="data" id="yearsOut">0</span></label>
+        <input type="range" id="years" min="0" max="30000" step="10" value="0">
+        <div class="grid grid-cols-4 gap-2 mt-1">
+          <button class="btn data" type="button" data-nudge="-100">−100</button>
+          <button class="btn data" type="button" data-nudge="-10">−10</button>
+          <button class="btn data" type="button" data-nudge="10">+10</button>
+          <button class="btn data" type="button" data-nudge="100">+100</button>
+        </div>
+      </div>
+
+      <div class="curve"><canvas id="curve" aria-label="Exponential decay curve of carbon-14 over 30,000 years with your reading as a line"></canvas></div>
+
+      <div class="match" id="match">Measure a specimen, then move the slider until the dot meets the amber reading line.</div>
+    </section>
+
+    <!-- ===== 3. Age verification ===== -->
+    <section class="verify panel p-3 sm:p-4 flex flex-col gap-3" id="verify" aria-labelledby="vTitle">
+      <h2 id="vTitle" class="text-lg font-semibold">How old is it?</h2>
+      <form id="vForm" class="flex flex-wrap gap-2" novalidate>
+        <label class="field" for="guess">
+          <input id="guess" inputmode="numeric" autocomplete="off" placeholder="Your age estimate" aria-label="Your age estimate in years">
+          <span>years</span>
+        </label>
+        <button class="btn primary" type="submit">Verify Age</button>
+      </form>
+      <div class="result" id="result" role="status"></div>
+      <p class="note">Counts as correct within 5% of the specimen's age (at least 150 years either side).</p>
+    </section>
+  </div>
+
+  <footer class="mt-6 note flex flex-col gap-2">
+    <p>
+      <b>How the numbers work.</b> Remaining C-14 = ½<sup>age ÷ 5,730</sup>. Half is left after about 5,730 years (the video rounds it to 5,700), a quarter after about 11,460 and an eighth after about 17,190.
+      Specimen readings are model values for illustration. Real labs count atoms with a mass spectrometer and then calibrate radiocarbon years against tree rings, because the air's carbon-14 level has drifted over time.
+    </p>
+    <p>
+      Sources: <a href="https://radiocarbon.arch.ox.ac.uk/methods" target="_blank" rel="noopener">Oxford Radiocarbon Accelerator Unit</a> ·
+      <a href="https://ams.arizona.edu/node/9" target="_blank" rel="noopener">University of Arizona AMS Laboratory</a> ·
+      <a href="https://en.wikipedia.org/wiki/Carbon-14" target="_blank" rel="noopener">Carbon-14 (Wikipedia)</a>
+    </p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ------------------------------------------------------------------
+   * Physics
+   * ------------------------------------------------------------------ */
+  const HALF_LIFE = 5730;                                  // years (Cambridge half-life)
+  const remaining = (years) => Math.pow(0.5, years / HALF_LIFE); // fraction of C-14 left
+  const MAX_YEARS = 30000;
+  const ATOMS = 400;                                       // 20 x 20 grid
+  const MAX_CPS = 32;                                      // probe clicks/s for a living sample (illustrative)
+  const BACKGROUND_CPS = 0.4;                              // stray background clicks with nothing under the probe
+
+  /* The specimens. Ages are the expected radiocarbon ages (model values for illustration). */
+  const SPECIMENS = [
+    // `spot` is where the probe lands on the drawing (400 x 300 design coordinates)
+    { id: 'viking',  code: 'A', name: 'Viking longship wood', age: 1000,  spot: [200, 152], blurb: 'Oak plank from a ship burial.' },
+    { id: 'mammoth', code: 'B', name: 'Woolly mammoth tusk',  age: 15000, spot: [214, 88],  blurb: 'Ivory from a frozen riverbank.' },
+    { id: 'mummy',   code: 'C', name: 'Mummy shroud',          age: 3300,  spot: [200, 160], blurb: 'Linen wrapping from an Egyptian tomb.' },
+    { id: 'bone',    code: 'D', name: 'The bone from the video', age: 3 * HALF_LIFE, spot: [200, 150], blurb: 'One-eighth of its carbon-14 left. How old is it?' },
+  ];
+
+  /* ------------------------------------------------------------------
+   * DOM + theme tokens
+   * ------------------------------------------------------------------ */
+  const $ = (id) => document.getElementById(id);
+  const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
+  const COL = { c14: tok('--c14'), decayed: tok('--decayed'), reading: tok('--reading'), line: tok('--line'), muted: tok('--muted'), fg: tok('--fg'), spec: tok('--specimen'), ok: tok('--ok') };
+  const FONT_DATA = tok('--font-data');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+
+  const stage = $('stage'), probe = $('probe'), specCanvas = $('specimen'), sctx = specCanvas.getContext('2d');
+  const atomCanvas = $('atoms'), actx = atomCanvas.getContext('2d');
+  const curveCanvas = $('curve'), cctx = curveCanvas.getContext('2d');
+  const slider = $('years');
+  let DPR = Math.min(2, window.devicePixelRatio || 1);
+
+  /* ------------------------------------------------------------------
+   * State
+   * ------------------------------------------------------------------ */
+  let current = SPECIMENS[0];
+  let probePos = { x: 0.84, y: 0.8 };     // probe tip, as a fraction of the stage
+  let onSample = false;                   // probe tip is over the specimen
+  let measureStart = 0;                   // when the current measurement began (ms)
+  let shownReading = null;                // value on the display (percent)
+  let target = null;                      // reading the viewer set as the sandbox target (percent)
+  let specPath = null;                    // Path2D outline of the drawn specimen (for hit-testing)
+  let soundOn = false, audio = null;
+
+  /* ------------------------------------------------------------------
+   * Specimen tabs
+   * ------------------------------------------------------------------ */
+  const tabs = $('tabs');
+  SPECIMENS.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab'; b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'tab-' + s.id;
+    b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    b.innerHTML = `<b>SPECIMEN ${s.code}</b><span>${s.name}</span>`;
+    b.addEventListener('click', () => selectSpecimen(s));
+    tabs.appendChild(b);
+  });
+
+  function selectSpecimen(s) {
+    current = s;
+    [...tabs.children].forEach((b) => b.setAttribute('aria-selected', b.id === 'tab-' + s.id ? 'true' : 'false'));
+    $('hint').textContent = s.blurb + ' Drag the probe onto it, or tap it.';
+    drawSpecimen();
+    // if the probe was measuring, glide it onto the new specimen's measuring spot
+    if (onSample) { probePos = spotFraction(s); placeProbe(true); }
+    checkProbe(true);
+    $('result').textContent = ''; $('result').className = 'result';
+  }
+
+  /* The specimen's measuring spot as a fraction of the stage. */
+  function spotFraction(s) {
+    const p = designTransform().transformPoint(new DOMPoint(s.spot[0], s.spot[1]));
+    return { x: p.x / (specCanvas.width / DPR), y: p.y / (specCanvas.height / DPR) };
+  }
+
+  /* ------------------------------------------------------------------
+   * Specimen drawings (line art on the dark bench). Each returns its outline as a Path2D.
+   * Coordinates are in a 400 x 300 design box, scaled to fit the stage.
+   * ------------------------------------------------------------------ */
+  function sizeStage() {
+    const w = Math.floor(stage.getBoundingClientRect().width);
+    const h = Math.round(w * (w < 520 ? 0.82 : 0.68));
+    specCanvas.width = w * DPR; specCanvas.height = h * DPR; specCanvas.style.height = h + 'px';
+    drawSpecimen();
+    placeProbe(false);
+  }
+
+  function designTransform() {
+    const w = specCanvas.width / DPR, h = specCanvas.height / DPR;
+    const s = Math.min(w / 400, h / 300);
+    return new DOMMatrix().translate(w / 2, h / 2 + 8).scale(s).translate(-200, -150);
+  }
+
+  function drawSpecimen() {
+    const ctx = sctx, w = specCanvas.width / DPR, h = specCanvas.height / DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    // bench grid
+    ctx.strokeStyle = 'rgba(141,141,153,0.06)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 24; x < w; x += 24) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
+    for (let y = 24; y < h; y += 24) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
+    ctx.stroke();
+
+    const m = designTransform();
+    ctx.setTransform(new DOMMatrix([DPR, 0, 0, DPR, 0, 0]).multiply(m));
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const outline = DRAW[current.id](ctx);
+    // keep the outline in canvas pixel space for hit-testing
+    specPath = new Path2D();
+    specPath.addPath(outline, new DOMMatrix([DPR, 0, 0, DPR, 0, 0]).multiply(m));
+
+    // specimen label
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.font = '500 11px ' + FONT_DATA; ctx.fillStyle = COL.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText('SPECIMEN ' + current.code + ' · ' + current.name.toUpperCase(), w - 10, h - 8);
+  }
+
+  // shared stroke/fill for the outline
+  function body(ctx, p) {
+    ctx.fillStyle = 'rgba(217,212,199,0.07)'; ctx.fill(p);
+    ctx.strokeStyle = COL.spec; ctx.lineWidth = 3; ctx.stroke(p);
+  }
+  function detail(ctx, d, width = 1.6, alpha = 0.55) {
+    ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = COL.spec; ctx.lineWidth = width; ctx.stroke(new Path2D(d)); ctx.restore();
+  }
+
+  const DRAW = {
+    // Oak plank with a broken end, wood grain and two rivet holes
+    viking(ctx) {
+      const p = new Path2D('M 60 120 L 300 96 L 318 104 L 330 98 L 338 112 L 352 108 L 344 126 L 356 140 L 340 150 L 348 170 L 312 178 L 72 196 Q 52 160 60 120 Z');
+      body(ctx, p);
+      detail(ctx, 'M 76 136 C 140 128, 220 120, 300 112 M 74 152 C 150 146, 230 138, 322 130 M 74 168 C 140 164, 210 158, 300 152 M 78 182 C 150 178, 220 172, 312 166 M 150 140 C 170 136, 182 146, 166 150 C 156 152, 150 146, 156 142');
+      ctx.fillStyle = COL.spec; ctx.globalAlpha = 0.8;
+      [[110, 140], [250, 128]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill(); });
+      ctx.globalAlpha = 1;
+      return p;
+    },
+    // Curved ivory tusk with growth rings
+    mammoth(ctx) {
+      const p = new Path2D('M 58 214 C 70 120, 170 54, 300 66 C 346 70, 370 92, 360 104 C 352 112, 330 100, 300 100 C 196 96, 118 150, 100 220 Q 80 236, 58 214 Z');
+      body(ctx, p);
+      detail(ctx, 'M 72 196 L 96 206 M 84 170 L 112 186 M 104 144 L 130 164 M 130 120 L 150 144 M 160 100 L 174 126 M 196 84 L 204 112 M 236 74 L 238 102 M 276 70 L 272 98 M 312 72 L 306 99');
+      detail(ctx, 'M 80 206 C 92 140, 180 82, 300 84', 1.2, 0.35);
+      return p;
+    },
+    // Folded linen cloth with a torn hem, weave and a painted border band
+    mummy(ctx) {
+      const p = new Path2D('M 90 70 L 310 62 L 322 120 L 316 196 L 300 206 L 286 198 L 268 214 L 246 202 L 226 218 L 204 204 L 182 220 L 160 204 L 140 216 L 118 202 L 96 212 L 84 196 L 80 130 Z');
+      body(ctx, p);
+      let weave = '';
+      for (let x = 100; x < 310; x += 14) weave += `M ${x} 74 L ${x + 4} 196 `;
+      for (let y = 86; y < 196; y += 14) weave += `M 86 ${y} L 316 ${y - 6} `;
+      detail(ctx, weave, 0.8, 0.22);
+      detail(ctx, 'M 88 100 L 312 92 M 88 120 L 314 112', 2, 0.7);
+      // simple repeating border motif (circles and bars), decorative only
+      ctx.save(); ctx.globalAlpha = 0.7; ctx.strokeStyle = COL.spec; ctx.lineWidth = 1.6;
+      for (let x = 104; x < 300; x += 28) {
+        ctx.beginPath(); ctx.arc(x, 109 - (x - 100) * 0.035, 4.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + 13, 103 - (x - 100) * 0.035); ctx.lineTo(x + 13, 115 - (x - 100) * 0.035); ctx.stroke();
+      }
+      ctx.restore();
+      detail(ctx, 'M 200 66 L 206 206', 2, 0.35);
+      return p;
+    },
+    // The thigh bone from the video
+    bone(ctx) {
+      ctx.save();
+      ctx.translate(200, 150); ctx.rotate(-0.06); ctx.scale(0.5, 0.5);
+      const p = new Path2D('M -250 -42 L 250 -42 C 270 -42, 285 -85, 318 -80 C 352 -76, 362 -36, 338 -12 Q 330 0, 338 12 C 362 36, 352 76, 318 80 C 285 85, 270 42, 250 42 L -250 42 C -270 42, -285 85, -318 80 C -352 76, -362 36, -338 12 Q -330 0, -338 -12 C -362 -36, -352 -76, -318 -80 C -285 -85, -270 -42, -250 -42 Z');
+      ctx.fillStyle = 'rgba(217,212,199,0.07)'; ctx.fill(p);
+      ctx.strokeStyle = COL.spec; ctx.lineWidth = 6; ctx.stroke(p);
+      ctx.globalAlpha = 0.5; ctx.lineWidth = 3;
+      ctx.stroke(new Path2D('M -180 -18 C -80 -24, 40 -24, 150 -16 M -120 20 C -20 26, 80 24, 190 18'));
+      ctx.restore();
+      // the outline in design space, for hit-testing
+      const out = new Path2D();
+      out.addPath(p, new DOMMatrix().translate(200, 150).rotate(-0.06 * 180 / Math.PI).scale(0.5));
+      ctx.save(); ctx.font = '600 22px ' + FONT_DATA; ctx.fillStyle = COL.reading; ctx.textAlign = 'center';
+      ctx.fillText('?', 200, 104); ctx.restore();
+      return out;
+    },
+  };
+
+  /* ------------------------------------------------------------------
+   * Probe: drag it, tap the stage to send it there, or press Enter on it
+   * ------------------------------------------------------------------ */
+  function placeProbe(glide) {
+    const r = stage.getBoundingClientRect();
+    probe.classList.toggle('glide', !!glide);
+    probe.style.left = probePos.x * r.width + 'px';
+    probe.style.top = probePos.y * specCanvas.clientHeight + 'px';
+  }
+
+  function checkProbe(restart) {
+    const x = probePos.x * specCanvas.width, y = probePos.y * specCanvas.height;
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    const hit = !!specPath && sctx.isPointInPath(specPath, x, y);
+    if (hit !== onSample || (restart && hit)) {
+      onSample = hit;
+      measureStart = performance.now();
+      shownReading = null;
+    }
+    probe.classList.toggle('on', onSample);
+  }
+
+  let dragging = false, grabOffset = { x: 0, y: 0 };
+  probe.addEventListener('pointerdown', (e) => {
+    dragging = true; probe.setPointerCapture(e.pointerId); probe.classList.remove('glide');
+    const r = probe.getBoundingClientRect();
+    grabOffset = { x: e.clientX - (r.left + 38), y: e.clientY - (r.top + 38) };
+    e.preventDefault();
+  });
+  probe.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const r = specCanvas.getBoundingClientRect();
+    probePos = {
+      x: Math.min(0.98, Math.max(0.02, (e.clientX - grabOffset.x - r.left) / r.width)),
+      y: Math.min(0.98, Math.max(0.04, (e.clientY - grabOffset.y - r.top) / r.height)),
+    };
+    placeProbe(false); checkProbe(false);
+  });
+  const endDrag = () => { dragging = false; };
+  probe.addEventListener('pointerup', endDrag);
+  probe.addEventListener('pointercancel', endDrag);
+
+  // tap anywhere on the stage: the probe glides there
+  specCanvas.addEventListener('pointerdown', (e) => {
+    const r = specCanvas.getBoundingClientRect();
+    probePos = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    placeProbe(true); checkProbe(false);
+  });
+
+  // keyboard: Enter/Space toggles the probe between the specimen and its parking spot
+  probe.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    probePos = onSample ? { x: 0.84, y: 0.8 } : spotFraction(current);
+    placeProbe(true); checkProbe(false);
+  });
+
+  /* ------------------------------------------------------------------
+   * Readout: a measurement takes ~1.6 s, scattering and then settling on the value
+   * ------------------------------------------------------------------ */
+  const MEASURE_MS = 1600;
+  function updateReadout(now) {
+    const el = $('reading');
+    if (!onSample) {
+      el.textContent = '--.-%'; el.classList.add('idle');
+      $('readLabel').textContent = 'Remaining C-14 · no sample under probe';
+      $('useBtn').disabled = true;
+      return;
+    }
+    const truth = remaining(current.age) * 100;
+    const k = Math.min(1, (now - measureStart) / MEASURE_MS);
+    const noise = (1 - k) * (1 - k) * 12 * (Math.random() - 0.5);
+    shownReading = Math.max(0, Math.min(100, truth + noise));
+    el.textContent = shownReading.toFixed(1) + '%';
+    el.classList.remove('idle');
+    $('readLabel').textContent = k < 1 ? 'Remaining C-14 · measuring…' : 'Remaining C-14 · ' + current.name;
+    $('useBtn').disabled = k < 1;
+    // a finished reading of a new specimen becomes the sandbox target automatically
+    if (k >= 1 && targetFor !== current.id) setTarget(Math.round(truth * 10) / 10);
+  }
+
+  let targetFor = null;                   // specimen id the target reading came from
+  function setTarget(pct) {
+    target = pct; targetFor = current.id;
+    drawCurve(); updateMatch();
+  }
+  $('useBtn').addEventListener('click', () => setTarget(Math.round(remaining(current.age) * 1000) / 10));
+
+  /* ------------------------------------------------------------------
+   * Geiger clicks: random (Poisson) timing, rate proportional to the C-14 left.
+   * The LED flashes on every click; sound plays only when switched on.
+   * ------------------------------------------------------------------ */
+  const cpsNow = () => (onSample ? BACKGROUND_CPS + MAX_CPS * remaining(current.age) : BACKGROUND_CPS);
+  function scheduleClick() {
+    const rate = cpsNow();
+    const wait = -Math.log(1 - Math.random()) / rate * 1000; // exponential gap
+    setTimeout(() => { click(); scheduleClick(); }, Math.min(wait, 6000));
+  }
+  function click() {
+    const led = $('led');
+    led.classList.add('flash');
+    setTimeout(() => led.classList.remove('flash'), 40);
+    if (soundOn && audio) {
+      const t = audio.currentTime;
+      const src = audio.createBufferSource(); src.buffer = clickBuffer;
+      const g = audio.createGain(); g.gain.value = 0.35;
+      src.connect(g).connect(audio.destination); src.start(t);
+    }
+  }
+  let clickBuffer = null;
+  function makeAudio() {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    // a 4 ms noise burst with a fast decay sounds like a Geiger tick
+    const n = Math.floor(audio.sampleRate * 0.004);
+    clickBuffer = audio.createBuffer(1, n, audio.sampleRate);
+    const d = clickBuffer.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (n / 5));
+  }
+  $('soundBtn').addEventListener('click', (e) => {
+    soundOn = !soundOn;
+    if (soundOn && !audio) { try { makeAudio(); } catch (err) { soundOn = false; } }
+    if (audio && audio.state === 'suspended') audio.resume();
+    e.currentTarget.setAttribute('aria-pressed', soundOn);
+    e.currentTarget.textContent = soundOn ? 'Sound on' : 'Sound off';
+  });
+
+  /* ------------------------------------------------------------------
+   * Atom grid: each atom gets a random decay order, so the dark atoms spread
+   * randomly through the grid and exactly round(400 × fraction) stay lit.
+   * ------------------------------------------------------------------ */
+  const order = Array.from({ length: ATOMS }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const rankOf = new Array(ATOMS); order.forEach((cell, rank) => (rankOf[cell] = rank));
+  const flashAt = new Float64Array(ATOMS);   // when each atom last changed state (for a brief flash)
+  let lastLit = ATOMS;
+
+  function sizeAtoms() {
+    const w = Math.floor(atomCanvas.getBoundingClientRect().width);
+    atomCanvas.width = w * DPR; atomCanvas.height = w * DPR;
+  }
+  function drawAtoms(now) {
+    const ctx = actx, w = atomCanvas.width / DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, w, w);
+    const lit = Math.round(ATOMS * remaining(+slider.value));
+    if (lit !== lastLit) {
+      const [a, b] = lit < lastLit ? [lit, lastLit] : [lastLit, lit];
+      for (let r = a; r < b; r++) flashAt[order[r]] = now;
+      lastLit = lit;
+    }
+    const cell = w / 20, rad = cell * 0.3;
+    // decayed atoms (nitrogen-14 now)
+    ctx.fillStyle = COL.decayed; ctx.beginPath();
+    for (let i = 0; i < ATOMS; i++) if (rankOf[i] >= lit) { const x = (i % 20 + 0.5) * cell, y = (Math.floor(i / 20) + 0.5) * cell; ctx.moveTo(x + rad * 0.75, y); ctx.arc(x, y, rad * 0.75, 0, Math.PI * 2); }
+    ctx.fill();
+    // live carbon-14 atoms with a glow
+    ctx.save(); ctx.shadowColor = COL.c14; ctx.shadowBlur = cell * 0.5; ctx.fillStyle = COL.c14; ctx.beginPath();
+    for (let i = 0; i < ATOMS; i++) if (rankOf[i] < lit) { const x = (i % 20 + 0.5) * cell, y = (Math.floor(i / 20) + 0.5) * cell; ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, Math.PI * 2); }
+    ctx.fill(); ctx.restore();
+    // brief white flash on atoms that just changed
+    for (let i = 0; i < ATOMS; i++) {
+      const age = now - flashAt[i];
+      if (age < 260 && !reduceMotion) {
+        const x = (i % 20 + 0.5) * cell, y = (Math.floor(i / 20) + 0.5) * cell;
+        ctx.globalAlpha = 1 - age / 260; ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(x, y, rad * (1 + age / 260), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ------------------------------------------------------------------
+   * Decay curve: ½^(t/5730) over 0–30,000 years, half-life markers,
+   * the slider's position as a dot, and the probe reading as an amber line.
+   * ------------------------------------------------------------------ */
+  function sizeCurve() {
+    const w = Math.floor(curveCanvas.parentElement.getBoundingClientRect().width);
+    const h = w < 460 ? 190 : 220;
+    curveCanvas.width = w * DPR; curveCanvas.height = h * DPR; curveCanvas.style.height = h + 'px';
+  }
+  function drawCurve() {
+    const ctx = cctx, w = curveCanvas.width / DPR, h = curveCanvas.height / DPR;
+    const pad = { l: 40, r: 12, t: 14, b: 26 };
+    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+    const X = (yrs) => pad.l + (yrs / MAX_YEARS) * pw;
+    const Y = (pct) => pad.t + (1 - pct / 100) * ph;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = '10.5px ' + FONT_DATA; ctx.lineWidth = 1;
+
+    // y grid
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (const p of [0, 25, 50, 75, 100]) {
+      ctx.strokeStyle = COL.line; ctx.beginPath(); ctx.moveTo(pad.l, Math.round(Y(p)) + 0.5); ctx.lineTo(w - pad.r, Math.round(Y(p)) + 0.5); ctx.stroke();
+      ctx.fillStyle = COL.muted; ctx.fillText(p + '%', pad.l - 6, Y(p));
+    }
+    // x labels
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const step = pw < 320 ? 10000 : 5000;
+    for (let t = 0; t <= MAX_YEARS; t += step) ctx.fillText(t === 0 ? '0' : t / 1000 + 'k', X(t), h - pad.b + 7);
+    // half-life markers
+    ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(63,169,255,0.25)';
+    ['½', '¼', '⅛', '1⁄16', '1⁄32'].forEach((lab, i) => {
+      const t = (i + 1) * HALF_LIFE, x = Math.round(X(t)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, Y(remaining(t) * 100)); ctx.lineTo(x, Y(0)); ctx.stroke();
+      if (pw >= 280 || i < 3) { ctx.fillStyle = 'rgba(63,169,255,0.7)'; ctx.textBaseline = 'bottom'; ctx.fillText(lab, x, Y(remaining(t) * 100) - 4); }
+    });
+    ctx.setLineDash([]);
+
+    // the curve, with a soft fill under it
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) { const t = (i / 200) * MAX_YEARS; i ? ctx.lineTo(X(t), Y(remaining(t) * 100)) : ctx.moveTo(X(t), Y(remaining(t) * 100)); }
+    ctx.save(); ctx.lineTo(X(MAX_YEARS), Y(0)); ctx.lineTo(X(0), Y(0)); ctx.closePath(); ctx.fillStyle = 'rgba(63,169,255,0.08)'; ctx.fill(); ctx.restore();
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) { const t = (i / 200) * MAX_YEARS; i ? ctx.lineTo(X(t), Y(remaining(t) * 100)) : ctx.moveTo(X(t), Y(remaining(t) * 100)); }
+    ctx.strokeStyle = COL.c14; ctx.lineWidth = 2.2; ctx.shadowColor = COL.c14; ctx.shadowBlur = 8; ctx.stroke(); ctx.shadowBlur = 0;
+
+    // probe reading line
+    if (target !== null) {
+      const y = Math.round(Y(target)) + 0.5;
+      ctx.strokeStyle = COL.reading; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke(); ctx.setLineDash([]);
+      const label = 'reading ' + target.toFixed(1) + '%';
+      ctx.font = '500 10.5px ' + FONT_DATA;
+      const lw = ctx.measureText(label).width + 8;
+      const ly = y < pad.t + 18 ? y + 4 : y - 18;
+      ctx.fillStyle = '#131316'; ctx.fillRect(w - pad.r - lw, ly, lw, 14);
+      ctx.fillStyle = COL.reading; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText(label, w - pad.r - 4, ly + 2);
+    }
+
+    // slider position
+    const yrs = +slider.value, pct = remaining(yrs) * 100;
+    ctx.strokeStyle = 'rgba(236,236,241,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.round(X(yrs)) + 0.5, Y(pct)); ctx.lineTo(Math.round(X(yrs)) + 0.5, Y(0)); ctx.stroke();
+    ctx.fillStyle = COL.fg; ctx.beginPath(); ctx.arc(X(yrs), Y(pct), 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = COL.c14; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  /* ------------------------------------------------------------------
+   * Slider + stats + match detection
+   * ------------------------------------------------------------------ */
+  function onYears() {
+    const yrs = +slider.value, f = remaining(yrs);
+    slider.style.setProperty('--fill', (yrs / MAX_YEARS) * 100 + '%');
+    $('yearsOut').textContent = fmt(yrs);
+    $('sYears').textContent = fmt(yrs);
+    $('sLeft').textContent = (f * 100).toFixed(1) + '%';
+    $('sHalf').textContent = (yrs / HALF_LIFE).toFixed(2);
+    drawCurve(); updateMatch();
+  }
+  function updateMatch() {
+    const m = $('match');
+    if (target === null) { m.className = 'match'; m.innerHTML = 'Measure a specimen, then move the slider until the dot meets the amber reading line.'; return; }
+    const pct = remaining(+slider.value) * 100;
+    const diff = pct - target;
+    if (Math.abs(diff) <= 0.15) {
+      m.className = 'match hit';
+      m.innerHTML = `<b>Match.</b> ${target.toFixed(1)}% left means it has been decaying for about <b class="data">${fmt(+slider.value)} years</b>. Type that into the age check.`;
+    } else {
+      m.className = 'match';
+      m.innerHTML = `Target <span class="data" style="color: var(--reading)">${target.toFixed(1)}%</span>. The clock shows <span class="data" style="color: var(--c14)">${pct.toFixed(1)}%</span>: ${diff > 0 ? 'more time has passed. Slide right.' : 'too much time. Slide left.'}`;
+    }
+  }
+  slider.addEventListener('input', onYears);
+  document.querySelectorAll('[data-nudge]').forEach((b) => b.addEventListener('click', () => {
+    slider.value = Math.max(0, Math.min(MAX_YEARS, +slider.value + +b.dataset.nudge));
+    onYears();
+  }));
+
+  /* ------------------------------------------------------------------
+   * Age verification
+   * ------------------------------------------------------------------ */
+  $('vForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const raw = $('guess').value.replace(/[^\d.]/g, '');
+    const res = $('result'), panel = $('verify');
+    if (!raw) { res.className = 'result bad'; res.textContent = 'Type an age in years first, for example 5000.'; return; }
+    const guess = +raw, age = current.age, tol = Math.max(150, age * 0.05);
+    panel.classList.remove('won', 'shake'); void panel.offsetWidth;
+    if (Math.abs(guess - age) <= tol) {
+      res.className = 'result ok';
+      res.textContent = `Confirmed: the ${current.name.toLowerCase()} is about ${fmt(Math.round(age / 10) * 10)} years old. ${remaining(age) * 100 < 13 ? 'Three half-lives!' : ''}`.trim();
+      panel.classList.add('won');
+      burst();
+    } else {
+      res.className = 'result bad';
+      res.textContent = guess < age ? `Too young. ${fmt(guess)} years would leave ${(remaining(guess) * 100).toFixed(1)}% C-14, more than this specimen has.` : `Too old. ${fmt(guess)} years would leave ${(remaining(guess) * 100).toFixed(1)}% C-14, less than this specimen has.`;
+      panel.classList.add('shake');
+    }
+  });
+
+  /* Success burst: cyan sparks from the Verify panel (skipped for reduced motion) */
+  const burstCanvas = $('burst'), bctx = burstCanvas.getContext('2d');
+  let sparks = [];
+  function burst() {
+    if (reduceMotion) return;
+    burstCanvas.width = innerWidth * DPR; burstCanvas.height = innerHeight * DPR;
+    const r = $('verify').getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + 40;
+    sparks = Array.from({ length: 70 }, () => {
+      const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 320;
+      return { x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 140, life: 0, max: 0.8 + Math.random() * 0.6, c: Math.random() < 0.75 ? COL.c14 : COL.ok };
+    });
+  }
+  function drawBurst(dt) {
+    if (!sparks.length) return;
+    bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    bctx.clearRect(0, 0, innerWidth, innerHeight);
+    sparks = sparks.filter((s) => (s.life += dt) < s.max);
+    for (const s of sparks) {
+      s.vy += 520 * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+      bctx.globalAlpha = 1 - s.life / s.max; bctx.fillStyle = s.c;
+      bctx.beginPath(); bctx.arc(s.x, s.y, 3, 0, Math.PI * 2); bctx.fill();
+    }
+    bctx.globalAlpha = 1;
+    if (!sparks.length) bctx.clearRect(0, 0, innerWidth, innerHeight);
+  }
+
+  /* ------------------------------------------------------------------
+   * Loop, sizing, start-up
+   * ------------------------------------------------------------------ */
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    updateReadout(now);
+    $('cps').innerHTML = cpsNow().toFixed(1) + '<br>clicks/s';
+    drawAtoms(now);
+    drawBurst(dt);
+    requestAnimationFrame(frame);
+  }
+
+  function resizeAll() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    sizeStage(); sizeAtoms(); sizeCurve(); drawCurve();
+    checkProbe(false);
+  }
+  new ResizeObserver(resizeAll).observe(document.querySelector('.bench'));
+
+  resizeAll();
+  selectSpecimen(SPECIMENS[0]);
+  onYears();
+  // Open in a working state: the probe is already resting on the first specimen, measuring.
+  probePos = spotFraction(current);
+  placeProbe(false); checkProbe(true);
+  scheduleClick();
+  requestAnimationFrame(frame);
+})();
+</script>
+<!-- Visitor counts (GoatCounter: no cookies, no personal data): https://thisiscurio.goatcounter.com -->
+<script data-goatcounter="https://thisiscurio.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>
