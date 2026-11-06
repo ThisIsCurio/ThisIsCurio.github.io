@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../assets/curio-mark.png">
+<title>Height Clock</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Raise a clock from one foot to GPS height and see how much faster it ticks, per day and over a lifetime. Companion to the Curio video Falling Toward Slower Time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600;800&display=swap">
+<style>
+  /* Layout: one phone-width column. The stage first (the man in the time layers, a clock
+     you raise on a log height ruler), then the height control, then the readouts, then
+     "your head vs your feet". Desktop: stage left, controls and readouts right.
+     Single committed dark look, matching the video's Dot Mesh stage: near-black, light
+     text, the man in indigo dots, ember reserved for TIME (clock hands, ticks, gains). */
+  :root {
+    color-scheme: dark;
+    --bg: #04030A;        /* Dot Mesh stage */
+    --panel: #0D0B1A;
+    --line: #241F3D;      /* hairlines, violet-biased */
+    --fg: #F1ECFF;        /* light text */
+    --muted: #8F87AB;     /* muted violet-grey */
+    --ember: #FF8A1F;     /* the one accent: time */
+    --man: #6A4CE0;       /* the man's dots */
+    --font-display: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-data: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-display); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 22px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+  .eyebrow { font-family: var(--font-data); font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .eyebrow a { color: inherit; text-decoration: none; }
+  .eyebrow a:hover { color: var(--fg); }
+  h1 { margin: 2px 0 0; font-size: clamp(30px, 7vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.02; text-wrap: balance; }
+  h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
+  .lede b { color: var(--fg); font-weight: 600; }
+  .ember { color: var(--ember); }
+  .data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; } }
+  .col { display: grid; gap: 16px; min-width: 0; }
+
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: radial-gradient(120% 90% at 50% 70%, #0B0920 0%, var(--bg) 72%); }
+  .stage canvas { display: block; width: 100%; height: 440px; }
+  .stage .note { position: absolute; right: 12px; bottom: 10px; font-family: var(--font-data); font-size: 10.5px; color: var(--muted); letter-spacing: .06em; }
+
+  .panel { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+  .label { font-family: var(--font-data); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+  .height-now { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .height-now .big { font-family: var(--font-data); font-weight: 800; font-size: 26px; }
+  .height-now .what { color: var(--muted); font-size: 13px; }
+  input[type="range"] { width: 100%; accent-color: var(--ember); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 600 12.5px var(--font-display); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; cursor: pointer; }
+  .chip:hover { border-color: var(--muted); }
+  .chip[aria-pressed="true"] { border-color: var(--ember); color: var(--ember); }
+  .chip:focus-visible, input:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+  .reads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .read { border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
+  .read .v { font-family: var(--font-data); font-weight: 800; font-size: 22px; color: var(--ember); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .read .k { font-size: 12.5px; color: var(--muted); }
+  .read.wide { grid-column: 1 / -1; }
+  .caveat { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .caveat b { color: var(--fg); font-weight: 600; }
+
+  .you { display: grid; gap: 10px; }
+  .you .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .you input[type="number"] { width: 92px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: 600 16px var(--font-data); }
+  .you .answer { font-size: 17px; line-height: 1.45; }
+  .you .answer .data { color: var(--ember); font-weight: 800; }
+
+  footer { color: var(--muted); font-size: 12px; display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 14px; }
+  footer a { color: var(--fg); }
+  @media (prefers-reduced-motion: reduce) { .chip { transition: none; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><a href="../">Curio</a> · after the video</div>
+    <h1>Height Clock</h1>
+    <p class="lede">Clocks tick faster the higher they sit. Raise one and see how far ahead of a clock on the ground it gets. <b>That difference in time is what makes things fall.</b></p>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div class="stage" aria-label="A man standing in layers of time that crowd near the ground; a clock raised on a height ruler">
+        <canvas id="stage"></canvas>
+        <div class="note">heights on a log scale · not to scale</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="h-raise">
+        <div class="height-now">
+          <h2 id="h-raise">Raise the clock</h2>
+          <div><span class="big" id="hNow">1 foot</span> <span class="what" id="hWhat">a clock on a shelf</span></div>
+        </div>
+        <label class="label" for="h">Height above the ground</label>
+        <input id="h" type="range" min="0" max="1000" step="1">
+        <div class="chips" role="group" aria-label="Preset heights">
+          <button class="chip" data-h="0.33">1 foot</button>
+          <button class="chip" data-h="3">Upstairs</button>
+          <button class="chip" data-h="828">Burj Khalifa</button>
+          <button class="chip" data-h="8849">Everest</button>
+          <button class="chip" data-h="11000">Airliner</button>
+          <button class="chip" data-h="408000">Space station</button>
+          <button class="chip" data-h="20200000">GPS orbit</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-gain">
+        <h2 id="h-gain">How far ahead it gets</h2>
+        <div class="reads">
+          <div class="read"><div class="v" id="perDay">–</div><div class="k">every day</div></div>
+          <div class="read"><div class="v" id="perLife">–</div><div class="k">over a lifetime (79 years)</div></div>
+          <div class="read wide"><div class="v" id="since">–</div><div class="k">since you opened this page</div></div>
+        </div>
+        <p class="caveat" id="caveat">Estimates for a clock <b>held still</b> at that height, from gravity alone.</p>
+      </section>
+
+      <section class="panel you" aria-labelledby="h-you">
+        <h2 id="h-you">Your head vs your feet</h2>
+        <div class="row">
+          <label class="label" for="me">Your height</label>
+          <input id="me" type="number" min="50" max="250" step="1" value="170"> <span class="data" style="color:var(--muted)">cm</span>
+        </div>
+        <p class="answer" id="meAnswer"></p>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <div>Model: weak-field general relativity, rate difference = GM/c² × (1/R − 1/(R + h)) with Earth's GM = 3.986 × 10¹⁴ m³/s², R = 6,371 km. "Lifetime" = 79 years. "1 foot" is NIST's 33 cm. Real satellites also move fast, which slows their clocks (that part is special relativity): GPS nets about +38 µs a day, the space station runs slow overall.</div>
+    <div>Sources: <a href="https://www.nist.gov/news-events/news/2010/09/nist-pair-aluminum-atomic-clocks-reveal-einsteins-relativity-personal" target="_blank" rel="noopener">NIST, 2010 (a clock 33 cm higher runs faster)</a> · <a href="https://www.astronomy.ohio-state.edu/pogge.1/Ast162/Unit5/gps.html" target="_blank" rel="noopener">R. Pogge, Real-World Relativity: GPS</a></div>
+    <div>Companion to the Curio video <b style="color:var(--fg)">Falling Toward Slower Time</b>. Video models: apple by jeremy and satellite by AroniaStudios, via Poly Pizza (CC-BY 3.0).</div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  // --- physics: gravitational rate difference of a clock at height h vs the ground ---
+  const GM = 3.986004418e14, C = 299792458, R = 6.371e6;
+  const rate = (h) => (GM / (C * C)) * (1 / R - 1 / (R + h)); // seconds gained per second
+  const DAY = 86400, LIFE = 79 * 365.25 * DAY;
+
+  // seconds -> readable (fs .. s)
+  const fmtTime = (s) => {
+    const units = [[1, "s"], [1e-3, "ms"], [1e-6, "µs"], [1e-9, "ns"], [1e-12, "ps"], [1e-15, "fs"], [1e-18, "as"]];
+    for (const [u, name] of units) if (s >= u) { const v = s / u; return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + " " + name; }
+    return s > 0 ? "< 0.01 as" : "0 s";
+  };
+  const fmtLen = (m) => m < 1 ? `${Math.round(m * 100)} cm` : m < 1000 ? `${m < 10 ? m.toFixed(1) : Math.round(m)} m` : `${(m / 1000).toLocaleString("en-US", {maximumFractionDigits: m < 10000 ? 1 : 0})} km`;
+
+  // slider: log scale 0.1 m .. 20,200 km
+  const LO = Math.log10(0.1), HI = Math.log10(2.02e7);
+  const toH = (v) => Math.pow(10, LO + (HI - LO) * (v / 1000));
+  const toV = (h) => Math.round(((Math.log10(h) - LO) / (HI - LO)) * 1000);
+
+  const $ = (id) => document.getElementById(id);
+  const slider = $("h"), chips = [...document.querySelectorAll(".chip")];
+  const WHAT = [[0.25, "barely off the floor"], [0.5, "a clock on a shelf"], [2.5, "about head height"], [10, "upstairs"], [300, "a tall building"], [1000, "the Burj Khalifa"], [9000, "Everest"], [20000, "an airliner"], [100000, "the edge of space"], [1e6, "the space station"], [1e7, "high orbit"], [Infinity, "GPS satellites"]];
+  let H = 0.33;
+  const opened = performance.now();
+
+  const setH = (h, fromChip) => {
+    H = h;
+    slider.value = toV(h);
+    $("hNow").textContent = fromChip ? fromChip.textContent : fmtLen(h);
+    $("hWhat").textContent = WHAT.find(([lim]) => h < lim)[1];
+    const r = rate(h);
+    $("perDay").textContent = "+" + fmtTime(r * DAY);
+    $("perLife").textContent = "+" + fmtTime(r * LIFE);
+    chips.forEach((c) => c.setAttribute("aria-pressed", String(fromChip === c)));
+    const cav = $("caveat");
+    if (h > 3e5) cav.innerHTML = "Estimate for a clock <b>held still</b> at that height, from gravity alone. A real satellite also moves fast, which slows its clock: GPS clocks net about <b>+38 µs a day</b>, and the space station's clocks run slow overall.";
+    else cav.innerHTML = "Estimates for a clock <b>held still</b> at that height, from gravity alone.";
+  };
+  slider.addEventListener("input", () => setH(toH(+slider.value)));
+  chips.forEach((c) => c.addEventListener("click", () => setH(+c.dataset.h, c)));
+
+  const me = $("me");
+  const updateMe = () => {
+    const cm = Math.min(250, Math.max(50, +me.value || 170));
+    const s = rate(cm / 100) * LIFE;
+    $("meAnswer").innerHTML = `Over a 79-year life, your head ends up about <span class="data">${fmtTime(s)}</span> older than your feet.`;
+  };
+  me.addEventListener("input", updateMe);
+
+  // --- the stage ---
+  const cv = $("stage"), ctx = cv.getContext("2d");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W = 0, Ht = 0, dpr = 1;
+  const resize = () => {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = cv.clientWidth; Ht = cv.clientHeight;
+    cv.width = W * dpr; cv.height = Ht * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  new ResizeObserver(resize).observe(cv);
+  resize();
+
+  // the man as a fixed field of dots (seeded), drawn once per size
+  let rnd = 7; const rand = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647);
+  const MAN = [];
+  const add = (cx, cy, rx, ry, n) => { for (let i = 0; i < n; i++) { const a = rand() * Math.PI * 2, k = Math.sqrt(rand()); MAN.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k, k]); } };
+  // in units of his height (0 = feet, 1 = top of head), x centred
+  add(0, 0.93, 0.065, 0.07, 160);                         // head
+  for (let y = 0.5; y <= 0.84; y += 0.02) add(0, y, 0.1 - (y < 0.58 ? (0.58 - y) * 0.25 : 0), 0.014, 26); // torso
+  for (const s of [-1, 1]) {
+    for (let y = 0.02; y <= 0.5; y += 0.02) add(s * (0.045 + (0.5 - y) * 0.02), y, 0.028, 0.012, 9); // legs
+    for (let y = 0.45; y <= 0.82; y += 0.02) add(s * (0.135 + (0.82 - y) * 0.05), y, 0.022, 0.012, 7); // arms
+  }
+
+  const frame = (now) => {
+    const t = (now - opened) / 1000;
+    ctx.clearRect(0, 0, W, Ht);
+    const ground = Ht - 46, top = 26;
+    const rulerX = 58;
+    const yOf = (h) => ground - ((Math.log10(Math.max(h, 0.1)) - LO) / (HI - LO)) * (ground - top);
+
+    // time layers: crowding near the ground; each with an ember tick that flashes slower where they crowd
+    const N = 9;
+    const ys = Array.from({length: N}, (_, i) => ground - Math.pow((i + 1) / N, 1.7) * (ground - top - 8));
+    ys.forEach((y, i) => {
+      const gap = (i === 0 ? ground - y : ys[i - 1] - y);
+      ctx.fillStyle = "rgba(255,138,31,0.28)";
+      for (let x = rulerX + 18; x < W - 14; x += 6) ctx.fillRect(x, y + ((x * 13 + i * 7) % 3) - 1, 1.6, 1.6);
+      const f = 1.6 * gap / (ground - top) * 4.2;
+      const ph = reduce ? 0.6 : ((t * f) % 1);
+      const flash = Math.exp(-ph * 7);
+      ctx.fillStyle = `rgba(255,138,31,${0.35 + 0.65 * flash})`;
+      ctx.beginPath(); ctx.arc(rulerX + 12, y, 3 + 3 * flash, 0, Math.PI * 2); ctx.fill();
+    });
+    // ground
+    ctx.fillStyle = "rgba(241,236,255,0.35)";
+    for (let x = rulerX; x < W - 10; x += 4) ctx.fillRect(x, ground + 2, 2, 2);
+
+    // log height ruler
+    ctx.font = "600 10.5px JetBrains Mono, ui-monospace, monospace";
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    const marks = [[0.1, "10 cm"], [1, "1 m"], [10, "10 m"], [100, "100 m"], [1000, "1 km"], [1e4, "10 km"], [1e5, "100 km"], [1e6, "1,000 km"], [1e7, "10,000 km"]];
+    for (const [h, lab] of marks) { const y = yOf(h); ctx.fillStyle = "#8F87AB"; ctx.fillText(lab, rulerX - 6, y); ctx.fillRect(rulerX, y, 6, 1); }
+    ctx.fillRect(rulerX, top, 1, ground - top);
+
+    // the man (decorative size), standing right of centre
+    const manH = Math.min(150, (ground - top) * 0.36), manX = W * 0.66;
+    for (const [x, y, k] of MAN) {
+      const px = manX + x * manH, py = ground - y * manH;
+      ctx.fillStyle = k > 0.82 ? "rgba(255,178,107,0.9)" : "rgba(106,76,224,0.85)";
+      ctx.fillRect(px, py, 1.7, 1.7);
+    }
+
+    // two clocks: one on the ground, one raised to H (both tick once a second; the raised one is
+    // ahead by the real amount, far too small to see, so the gain is shown as numbers)
+    const clock = (x, y, r, label) => {
+      ctx.strokeStyle = "rgba(241,236,255,0.9)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; ctx.fillStyle = "rgba(241,236,255,0.7)"; ctx.fillRect(x + Math.sin(a) * r * 0.78 - 1, y - Math.cos(a) * r * 0.78 - 1, 2, 2); }
+      const step = reduce ? 3 : Math.floor(t) + Math.min(1, (t % 1) / 0.12);
+      const a = step * Math.PI / 6;
+      ctx.strokeStyle = "#FF8A1F"; ctx.lineWidth = 3; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sin(a) * r * 0.68, y - Math.cos(a) * r * 0.68); ctx.stroke();
+      ctx.fillStyle = "#F1ECFF"; ctx.font = "600 11px JetBrains Mono, ui-monospace, monospace"; ctx.textAlign = "left";
+      ctx.fillText(label, x + r + 8, y);
+    };
+    const cx = Math.max(rulerX + 46, W * 0.3);
+    const yH = yOf(H);
+    // a thin line from the ground up to the raised clock
+    ctx.setLineDash([3, 5]); ctx.strokeStyle = "rgba(241,236,255,0.35)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, ground - 18); ctx.lineTo(cx, yH + 16); ctx.stroke(); ctx.setLineDash([]);
+    clock(cx, ground - 18, 15, "ground");
+    clock(cx, Math.min(yH, ground - 52), 15, "+" + fmtTime(rate(H) * DAY) + "/day");
+
+    $("since").textContent = "+" + fmtTime(rate(H) * Math.max(0, t));
+    if (!reduce || t < 1) requestAnimationFrame(frame);
+  };
+
+  setH(0.33, chips[0]);
+  updateMe();
+  requestAnimationFrame(frame);
+  if (reduce) setInterval(() => { $("since").textContent = "+" + fmtTime(rate(H) * (performance.now() - opened) / 1000); }, 1000);
+})();
+</script>
+<!-- Visitor counts (GoatCounter: no cookies, no personal data): https://thisiscurio.goatcounter.com -->
+<script data-goatcounter="https://thisiscurio.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>
