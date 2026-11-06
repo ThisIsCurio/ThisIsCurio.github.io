@@ -109,6 +109,7 @@ const WORLDS = [
   { title: "Light-Day Explorer", video: "One Light-Day Out", href: "voyager/", color: "#2FD4FF", desc: "Track Voyager 1 live and send a message at light speed." },
   { title: "Your Life Ribbon", video: "Why Years Get Shorter", href: "life-ribbon/", color: "#F2A51A", desc: "Enter your age and see how big this year is in your life." },
   { title: "Radiocarbon Lab", video: "The Clock in Every Bone", href: "radiocarbon-lab/", color: "#3FA9FF", desc: "Probe a fossil for its carbon-14 and wind the decay clock to find its age." },
+  { title: "Cas9 Guide Lab", video: "Bacteria's Scissors", href: "cas9-guide-lab/", color: "#FF8A1F", desc: "Write Cas9's guide, watch it find the match and snip, and see why guides are 20 letters." },
   { title: "Next video", video: "Coming soon" },
 ];
 
@@ -128,7 +129,7 @@ el("circle", { r: 12, fill: "#FFD27A" });
 
 const labels = document.getElementById("labels");
 const worlds = WORLDS.map((w, i) => {
-  const r = 70 + i * 52;
+  const r = 62 + i * Math.min(52, 128 / Math.max(1, WORLDS.length - 1)); // orbits always fit the 400-wide map
   el("ellipse", { class: "orbit", rx: r, ry: r * TILT, "stroke-dasharray": w.href ? "" : "3 6" });
   const node = w.href ? el("a", { href: w.href, class: "world", "aria-label": `${w.title}, from the video ${w.video}` })
                       : el("g", { class: "world soon", "aria-hidden": "true" });

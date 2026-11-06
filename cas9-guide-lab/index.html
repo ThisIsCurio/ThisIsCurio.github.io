@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../assets/curio-mark.png">
+<title>Cas9 Guide Lab</title>
+<meta name="description" content="Write Cas9's guide, watch it search a DNA strand and snip the match, and see why real guides are 20 letters long. Companion to the Curio video Bacteria's Scissors.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600;800&display=swap">
+<style>
+  /* Layout: one phone-width column, the dot stage first (Cas9 over its DNA), then the guide card you
+     write, then the strand it searches, then the "how long?" slider. Desktop: stage + strand left, controls right.
+     Single committed dark look, matching the video's Dot Mesh stage: near-black, light text,
+     DNA in blue-to-white dots, ember reserved for THE TARGET (the match, the cut, the guide). */
+  :root {
+    color-scheme: dark;
+    --bg: #04030A;        /* Dot Mesh stage */
+    --panel: #0D0B1A;     /* the dark mugshot card from the video */
+    --line: #241F3D;      /* hairlines, violet-biased */
+    --fg: #F1ECFF;        /* light text */
+    --muted: #8F87AB;     /* muted violet-grey */
+    --ember: #FF8A1F;     /* the one accent: the target */
+    --dna: #3FE0FF;       /* DNA dots (cyan) */
+    --cas9: #9E4CFF;      /* Cas9 (violet), as in the video */
+    --font-display: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-data: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-display); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 22px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+  .eyebrow { font-family: var(--font-data); font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .eyebrow a { color: inherit; text-decoration: none; }
+  .eyebrow a:hover { color: var(--fg); }
+  h1 { margin: 2px 0 0; font-size: clamp(30px, 7vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.02; text-wrap: balance; }
+  h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
+  .lede b { color: var(--fg); font-weight: 600; }
+  .ember { color: var(--ember); }
+  .data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; } }
+  .col { display: grid; gap: 16px; min-width: 0; }
+
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: radial-gradient(120% 90% at 50% 60%, #0B0920 0%, var(--bg) 70%); }
+  .stage canvas { display: block; width: 100%; height: 260px; }
+  .stage .status { position: absolute; left: 14px; top: 12px; right: 14px; display: flex; justify-content: space-between; gap: 10px; font-family: var(--font-data); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+  .stage .status b { color: var(--fg); font-weight: 600; }
+  .stage .status .hit { color: var(--ember); }
+
+  .panel { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+  .label { font-family: var(--font-data); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+  /* the guide = the mugshot card */
+  .card { border: 2px solid var(--fg); border-radius: 10px; padding: 10px 12px; position: relative; }
+  .card::before { content: ""; position: absolute; top: -6px; left: 50%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--fg); }
+  .card input { width: 100%; box-sizing: border-box; background: transparent; border: 0; outline: none; color: var(--fg); font-family: var(--font-data); font-weight: 800; font-size: 26px; letter-spacing: .22em; text-transform: uppercase; text-align: center; padding: 4px 0; }
+  .card.found input { color: var(--ember); }
+  .card:focus-within { border-color: var(--cas9); }
+  .hint { font-size: 13px; color: var(--muted); margin: 0; }
+  .hint.warn { color: var(--ember); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: 600 15px/1 var(--font-display); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 12px 16px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--cas9); outline-offset: 2px; }
+  button.go { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  button.go:hover { background: #fff; }
+  button[disabled] { opacity: .45; cursor: default; }
+
+  .readouts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .readout { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 2px; min-width: 0; }
+  .readout .v { font-family: var(--font-data); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .readout .k { font-size: 12px; color: var(--muted); }
+
+  /* the strand Cas9 searches */
+  .strand { font-family: var(--font-data); font-size: 14px; line-height: 1.9; letter-spacing: .08em; word-break: break-all; color: #5E5880; user-select: none; }
+  .strand span.seen { color: #9C95BC; }
+  .strand span.win { color: var(--fg); background: #241F3D; border-radius: 3px; }
+  .strand span.hit { color: var(--ember); font-weight: 800; }
+  .strand span.cut { box-shadow: inset -2px 0 0 var(--ember); }
+
+  /* how long should the guide be? */
+  .tiles { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tiles span { width: 22px; height: 26px; border-radius: 4px; display: grid; place-items: center; font: 800 13px var(--font-data); background: #1A1631; color: var(--muted); }
+  .tiles span.on { background: #2A2152; color: var(--fg); }
+  input[type=range] { width: 100%; accent-color: var(--ember); }
+  .big { font-family: var(--font-data); font-weight: 800; font-size: clamp(26px, 6vw, 34px); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .scale { position: relative; height: 34px; margin-top: 4px; }
+  .scale .bar { position: absolute; left: 0; right: 0; top: 12px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #3A2E6E, #241F3D 75%, #3B2A12 75%, #5A3A12); }
+  .scale .pin { position: absolute; top: 4px; width: 4px; height: 24px; margin-left: -2px; border-radius: 2px; background: var(--ember); transition: left .25s ease; }
+  .scale .ticks { position: absolute; left: 0; right: 0; top: 24px; display: flex; justify-content: space-between; font: 11px var(--font-data); color: var(--muted); }
+  .note { font-size: 13px; color: var(--muted); margin: 0; max-width: 62ch; }
+
+  footer { border-top: 1px solid var(--line); padding-top: 14px; font-size: 12.5px; color: var(--muted); display: grid; gap: 6px; }
+  footer a { color: var(--fg); }
+  @media (prefers-reduced-motion: reduce) { .scale .pin { transition: none; } }
+</style>
+<style>body { margin: 0; }</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><a href="../">Curio</a> · after the video</div>
+    <h1>Cas9 Guide Lab</h1>
+    <p class="lede">Write Cas9's <b>mugshot</b> (its guide), then watch it slide along a DNA strand, check every spot, and <span class="ember">snip</span> where the letters match.</p>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div class="stage" aria-label="Cas9 drawn as scissors moving along a DNA double helix made of glowing dots">
+        <canvas id="stage" width="900" height="520"></canvas>
+        <div class="status"><span id="status">Ready to search</span><span>letter <b id="pos">0</b> / <b id="len">0</b></span></div>
+      </div>
+
+      <div class="panel">
+        <div class="label">The DNA strand it searches</div>
+        <div class="strand" id="strand" aria-live="off"></div>
+        <p class="note">An example strand of random letters with your guide hidden in it once. Your real DNA is about <b class="data" style="color:var(--fg)">3,000,000,000</b> letters long.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <div class="label">Your guide (the mugshot)</div>
+        <div class="card" id="card"><input id="guide" maxlength="20" value="GATTCA" spellcheck="false" autocomplete="off" aria-label="Guide letters, A C G or T"></div>
+        <p class="hint" id="hint">4 to 20 letters, using only A, C, G and T.</p>
+        <div class="row">
+          <button class="go" id="search">Search &amp; snip</button>
+          <button id="shuffle">New strand</button>
+          <button id="random">Random guide</button>
+        </div>
+        <div class="readouts">
+          <div class="readout"><span class="v" id="checked">0</span><span class="k">spots checked</span></div>
+          <div class="readout"><span class="v" id="matches">–</span><span class="k">exact matches</span></div>
+          <div class="readout"><span class="v" id="cutAt">–</span><span class="k">cut after letter</span></div>
+        </div>
+        <p class="hint" id="result">Press Search: Cas9 checks one spot at a time.</p>
+      </div>
+
+      <div class="panel">
+        <h2>How long should the mugshot be?</h2>
+        <p class="note">A short guide is easy to match by accident. Drag to see how many places a guide of that length would match <i>by chance</i> in your 3 billion letters.</p>
+        <div class="tiles" id="tiles" aria-hidden="true"></div>
+        <label class="label" for="L">Guide length: <span class="data" id="Lv" style="color:var(--fg)">20</span> letters</label>
+        <input type="range" id="L" min="4" max="24" value="20">
+        <div>
+          <div class="big" id="expect">~0.003</div>
+          <div class="note" id="expectNote">chance matches expected</div>
+        </div>
+        <div class="scale" aria-hidden="true">
+          <div class="bar"></div><div class="pin" id="pin"></div>
+          <div class="ticks"><span>1 billion</span><span>1 million</span><span>1,000</span><span>1</span><span>1 in 1,000</span></div>
+        </div>
+        <p class="note">Estimate: assumes the 4 letters appear at random (3,000,000,000 ÷ 4<sup>length</sup>). Real genomes have repeats, so scientists also check each guide against the real sequence. The guides used with Cas9 are usually <b style="color:var(--fg)">20 letters</b>, and real Cas9 also needs a short "NGG" tag right next to its target, which this toy leaves out.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>From the Curio video <b style="color:var(--fg)">Bacteria's Scissors</b>. The strand is a made-up example; only the genome size and the 20-letter guide are real-world numbers.</div>
+    <div>Sources:
+      <a href="https://www.science.org/doi/10.1126/science.1225829" target="_blank" rel="noopener">Jinek et al. 2012, Science (programmable Cas9)</a> ·
+      <a href="https://www.addgene.org/guides/crispr/" target="_blank" rel="noopener">Addgene CRISPR guide (20-letter guides, NGG)</a> ·
+      <a href="https://www.genome.gov/about-genomics/fact-sheets/Human-Genome-Project-Fact-Sheet" target="_blank" rel="noopener">NHGRI (about 3 billion letters)</a> ·
+      <a href="https://www.fda.gov/news-events/press-announcements/fda-approves-first-gene-therapies-treat-patients-sickle-cell-disease" target="_blank" rel="noopener">FDA 2023 approval</a> ·
+      <a href="https://www.nejm.org/doi/full/10.1056/NEJMoa2504747" target="_blank" rel="noopener">NEJM 2025 custom editor</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const BASES = "ACGT";
+  const $ = (id) => document.getElementById(id);
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  // seeded random (same example every load until "New strand")
+  let seed = 20120628;
+  const rnd = () => { seed = (seed + 0x6d2b79f5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+  const N = 180;
+  let strand = "", plant = 0, guide = "GATTCA";
+  let state = "idle", scan = 0, timer = null, cutAt = -1, cutT = 0, allHits = [];
+
+  function makeStrand() {
+    const g = guide;
+    let s = "";
+    for (let i = 0; i < N; i++) s += BASES[Math.floor(rnd() * 4)];
+    plant = Math.floor(N * 0.55 + rnd() * N * 0.3) - g.length;
+    plant = Math.max(8, Math.min(N - g.length - 4, plant));
+    strand = s.slice(0, plant) + g + s.slice(plant + g.length);
+    allHits = [];
+    for (let i = 0; i + g.length <= N; i++) if (strand.startsWith(g, i)) allHits.push(i);
+  }
+
+  const strandEl = $("strand");
+  function renderStrand() {
+    const g = guide.length;
+    const hit = state === "found" || state === "cut" ? cutAt : -1;
+    let html = "";
+    for (let i = 0; i < N; i++) {
+      let cls = "";
+      if (hit >= 0 && i >= hit && i < hit + g) cls = "hit";
+      else if (state === "scanning" && i >= scan && i < scan + g) cls = "win";
+      else if ((state === "scanning" && i < scan) || state === "found" || state === "cut") cls = "seen";
+      if (state === "cut" && i === hit + Math.floor(g / 2) - 1) cls += " cut";
+      html += `<span class="${cls}">${strand[i]}</span>`;
+    }
+    strandEl.innerHTML = html;
+    $("pos").textContent = state === "idle" ? 0 : Math.min(N, (state === "scanning" ? scan : cutAt) + 1);
+    $("len").textContent = N;
+  }
+
+  function setStatus(text, hit) { const s = $("status"); s.textContent = text; s.className = hit ? "hit" : ""; }
+
+  function reset(msg) {
+    clearInterval(timer); timer = null; state = "idle"; scan = 0; cutAt = -1;
+    $("card").classList.remove("found");
+    $("checked").textContent = "0"; $("matches").textContent = "–"; $("cutAt").textContent = "–";
+    $("result").textContent = msg || "Press Search: Cas9 checks one spot at a time.";
+    setStatus("Ready to search");
+    $("search").disabled = false;
+    renderStrand();
+  }
+
+  function finish() {
+    clearInterval(timer); timer = null;
+    state = "found"; cutAt = scan; cutT = performance.now();
+    $("card").classList.add("found");
+    $("checked").textContent = fmt(scan + 1);
+    $("matches").textContent = allHits.length;
+    const cutLetter = cutAt + Math.floor(guide.length / 2);
+    $("cutAt").textContent = cutLetter;
+    setStatus("Match found", true);
+    renderStrand();
+    setTimeout(() => {
+      state = "cut"; cutT = performance.now(); renderStrand(); setStatus("Snipped", true);
+      $("result").innerHTML = allHits.length > 1
+        ? `<span class="ember">This guide matches ${allHits.length} places on this short strand.</span> Cas9 could cut any of them, which is why real guides are longer.`
+        : `Exact match at letter ${cutAt + 1}. Cas9 cut the strand in two. Every other spot was checked and rejected.`;
+      $("search").disabled = false;
+    }, still ? 0 : 450);
+  }
+
+  function search() {
+    reset(); state = "scanning"; $("search").disabled = true;
+    $("result").textContent = "Searching: comparing the guide with each spot…";
+    setStatus("Searching");
+    const g = guide;
+    const step = () => {
+      if (strand.startsWith(g, scan)) return finish();
+      scan++;
+      $("checked").textContent = fmt(scan);
+      if (scan + g.length > N) { clearInterval(timer); state = "idle"; return; }
+      renderStrand();
+    };
+    if (still) { while (state === "scanning" && !strand.startsWith(g, scan)) scan++; finish(); }
+    else timer = setInterval(step, 38);
+  }
+
+  // guide input: A/C/G/T only, 4-20 letters
+  const input = $("guide");
+  input.addEventListener("input", () => {
+    const clean = input.value.toUpperCase().replace(/[^ACGT]/g, "").slice(0, 20);
+    if (clean !== input.value) input.value = clean;
+    const ok = clean.length >= 4;
+    $("hint").textContent = ok ? `${clean.length} letters. Press Search to hide it in a fresh strand and find it.` : "Use at least 4 letters: only A, C, G and T.";
+    $("hint").className = "hint" + (ok ? "" : " warn");
+    $("search").disabled = !ok;
+    if (ok) { guide = clean; makeStrand(); reset("New guide: the strand now hides it once. Press Search."); }
+  });
+  $("search").addEventListener("click", () => { if (guide.length >= 4) search(); });
+  $("shuffle").addEventListener("click", () => { makeStrand(); reset(); });
+  $("random").addEventListener("click", () => {
+    const len = guide.length;
+    let g = ""; for (let i = 0; i < len; i++) g += BASES[Math.floor(rnd() * 4)];
+    input.value = g; input.dispatchEvent(new Event("input"));
+  });
+
+  // --- the dot stage: a 3D double helix of dots, Cas9 as violet scissors ---
+  const cv = $("stage"), cx = cv.getContext("2d");
+  function size() { const r = cv.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+  size(); addEventListener("resize", size);
+  const PAL = [[27, 77, 255], [44, 155, 255], [63, 224, 255], [168, 244, 255]];
+  const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+  const pal = (f) => { f = Math.max(0, Math.min(1, f)) * 3; const i = Math.min(2, Math.floor(f)); return mix(PAL[i], PAL[i + 1], f - i); };
+
+  function draw(now) {
+    const W = cv.width, H = cv.height, d = W / cv.getBoundingClientRect().width;
+    const t = still ? 0 : now / 1000;
+    cx.clearRect(0, 0, W, H);
+    const cy = H * 0.66, R = H * 0.15, period = W * 0.32;
+    // where Cas9 is along the strand (0..1)
+    const prog = state === "idle" ? 0.04 : (state === "scanning" ? scan : cutAt) / (N - guide.length);
+    const mx = W * (0.08 + 0.84 * Math.min(1, prog));
+    const k = state === "cut" ? Math.min(1, (now - cutT) / 500) : 0;
+    const gap = (1 - Math.pow(1 - k, 3)) * W * 0.035;
+    const dots = [];
+    for (let x = -10; x < W + 10; x += 3.2 * d) {
+      const off = x < mx ? -gap : gap;
+      for (const ph of [0, Math.PI * 0.8]) {
+        const a = (x / period) * Math.PI * 2 + ph + t * 0.6;
+        const z = Math.sin(a);
+        for (let j = -1; j <= 1; j++) dots.push([x + off, cy + Math.cos(a) * R + j * 2.2 * d, z]);
+      }
+      if (Math.round(x / (3.2 * d)) % 6 === 0) {
+        const a = (x / period) * Math.PI * 2 + t * 0.6;
+        for (let s = 0.12; s < 0.9; s += 0.08) {
+          const aa = a + Math.PI * 0.8 * s;
+          const y1 = cy + Math.cos(a) * R, y2 = cy + Math.cos(a + Math.PI * 0.8) * R;
+          dots.push([x + off, y1 + (y2 - y1) * s, Math.sin(aa) * 0.6 - 0.2]);
+        }
+      }
+    }
+    dots.sort((p, q) => p[2] - q[2]);
+    for (const [x, y, z] of dots) {
+      const near = Math.abs(x - mx) < W * 0.05 && (state === "found" || state === "cut");
+      const c = near ? [255, 138, 31] : pal(0.25 + 0.55 * (z * 0.5 + 0.5));
+      cx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${0.35 + 0.6 * (z * 0.5 + 0.5)})`;
+      const r = (1.1 + 0.9 * (z * 0.5 + 0.5)) * d;
+      cx.fillRect(x - r / 2, y - r / 2, r, r);
+    }
+    // Cas9 scissors above the strand, tips pointing down at the spot being checked
+    const sy = cy - R * 2.3, open = state === "cut" ? 2 : 16 + (state === "scanning" ? Math.sin(t * 12) * 3 : 0);
+    cx.save(); cx.translate(mx, sy); cx.rotate(Math.PI / 2 - 0.25);
+    cx.strokeStyle = "rgba(158,76,255,0.95)"; cx.lineWidth = 3 * d; cx.lineCap = "round";
+    const L = H * 0.17;
+    for (const s of [1, -1]) {
+      const a = (s * open * Math.PI) / 180;
+      cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(Math.cos(a) * L, Math.sin(a) * L); cx.stroke();
+      cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(-Math.cos(a) * L * 0.4, -Math.sin(a) * L * 0.4 - s * 6 * d); cx.stroke();
+      cx.beginPath(); cx.ellipse(-Math.cos(a) * L * 0.62, -Math.sin(a) * L * 0.62 - s * 10 * d, 11 * d, 8 * d, 0, 0, Math.PI * 2); cx.stroke();
+    }
+    cx.fillStyle = "#F1ECFF"; cx.beginPath(); cx.arc(0, 0, 3.5 * d, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+    // the target ring
+    if (state === "found" || state === "cut") {
+      cx.setLineDash([7 * d, 5 * d]); cx.strokeStyle = "#FF8A1F"; cx.lineWidth = 2.5 * d;
+      cx.beginPath(); cx.arc(mx, cy, R * 1.45, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]);
+    }
+    if (!still || state !== "idle") requestAnimationFrame(draw);
+  }
+
+  // --- how long should the guide be? ---
+  const Lin = $("L");
+  function updateL() {
+    const L = +Lin.value;
+    $("Lv").textContent = L;
+    const e = 3e9 / Math.pow(4, L);
+    let big, note;
+    if (e >= 1) { big = "~" + fmt(Math.round(e)); note = e >= 2 ? "places it would match by chance" : "place it would match by chance"; }
+    else { const one = Math.round(1 / e); big = "~" + (e < 0.01 ? e.toFixed(4) : e.toFixed(2)); note = `chance matches: about 1 in ${fmt(one)} genomes would have one`; }
+    $("expect").textContent = big; $("expect").className = "big" + (e < 1 ? "" : " ember");
+    $("expectNote").textContent = note + (L === 20 ? " (the usual guide length)" : "");
+    // log scale from 1e9 (left) to 1e-3 (right)
+    const pos = (9 - Math.log10(Math.max(e, 1e-4))) / 12;
+    $("pin").style.left = Math.max(0, Math.min(100, pos * 100)) + "%";
+    const tiles = $("tiles"); tiles.innerHTML = "";
+    const src = (guide + "GATTCACCGTTAGCATGCAA").slice(0, L);
+    for (let i = 0; i < L; i++) { const s = document.createElement("span"); s.textContent = src[i]; s.className = "on"; tiles.appendChild(s); }
+  }
+  Lin.addEventListener("input", updateL);
+
+  makeStrand(); reset(); updateL();
+  // open in a working state: the example search has already run
+  state = "scanning"; scan = plant; finish();
+  requestAnimationFrame(draw);
+})();
+</script>
+<!-- Visitor counts (GoatCounter: no cookies, no personal data): https://thisiscurio.goatcounter.com -->
+<script data-goatcounter="https://thisiscurio.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>

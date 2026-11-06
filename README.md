@@ -6,6 +6,7 @@ Interactive companions for Curio videos, served by GitHub Pages.
 - `voyager/`: Light-Day Explorer (video: One Light-Day Out).
 - `life-ribbon/`: Your Life Ribbon (video: Why Years Get Shorter).
 - `radiocarbon-lab/`: Radiocarbon Lab (video: The Clock in Every Bone).
+- `cas9-guide-lab/`: Cas9 Guide Lab (video: Bacteria's Scissors).
 - `assets/`: the Curio mark.
 
 To add a companion: put it in its own folder as `index.html`, add a card to the
